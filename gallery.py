@@ -1626,6 +1626,21 @@ class Handler(BaseHTTPRequestHandler):
     def rescan_workspace(self):
         rescan_workspace(self.server.ws_root)
 
+    def _tenant_watermark(self, project_id):
+        """项目所属摄影师的水印配置 (text, enabled). 旧数据/未设置 → (默认「贺染」, True)."""
+        text, enabled = '贺染', True
+        try:
+            project = db.get_project(project_id) or {}
+            owner = project.get('owner')
+            if owner:
+                pg = db.get_photographer(owner)
+                if pg:
+                    text = (pg.get('watermark_text') or '贺染').strip() or '贺染'
+                    enabled = bool(pg.get('watermark_enabled', 1))
+        except Exception:
+            pass
+        return text, enabled
+
     def _serve_img(self, path):
         # /img/<pid>/<photo_id>/<size>.jpg
         m = re.match(r'^/img/([^/]+)/([^/]+)/(\d+)\.jpg$', path)
@@ -1648,17 +1663,7 @@ class Handler(BaseHTTPRequestHandler):
                 cached = self.server.image_service.ensure(ph, size)
             else:
                 # 客户预览 (delivery /img): 叠加摄影师水印 (默认「贺染」, 可自定义/关闭)
-                wm_text, wm_enabled = '贺染', True
-                try:
-                    project = db.get_project(ph['project_id']) or {}
-                    owner = project.get('owner')
-                    if owner:
-                        pg = db.get_photographer(owner)
-                        if pg:
-                            wm_text = (pg.get('watermark_text') or '贺染').strip() or '贺染'
-                            wm_enabled = bool(pg.get('watermark_enabled', 1))
-                except Exception:
-                    pass
+                wm_text, wm_enabled = self._tenant_watermark(ph['project_id'])
                 cached = self.server.image_service.watermarked(ph, size, text=wm_text, enabled=wm_enabled)
         except ImageServiceError as exc:
             failure = exc.to_dict()
@@ -1666,13 +1671,23 @@ class Handler(BaseHTTPRequestHandler):
                 failure.pop('details', None)
             self._json({'error': str(exc), 'failure': failure}, 422)
             return
-        self._send_file(cached, 'image/jpeg', cache='public, max-age=31536000, immutable')
+        if self._authorized():
+            cache = 'public, max-age=31536000, immutable'   # 无水印原图可长缓存
+        else:
+            cache = 'public, max-age=86400'                 # 水印版: 文字变更后 1 天内自然过期
+        self._send_file(cached, 'image/jpeg', cache=cache)
 
     def _image_url(self, photo, size, delivery_code=None):
         signature = self.server.image_service.source_signature(photo)
         params = []
         if delivery_code:
             params.append('k=%s' % quote(delivery_code))
+            # 水印版本指纹: 文字/开关变化 → URL 变化 → 浏览器强缓存自动失效
+            # (旧 URL 无水印参数, 部署水印后必须强制刷新, 否则命中部署前的无水印缓存)
+            wm_text, wm_enabled = self._tenant_watermark(photo.get('project_id'))
+            wm_fp = 'off' if not wm_enabled else hashlib.sha256(
+                wm_text.encode('utf-8')).hexdigest()[:6]
+            params.append('wm=%s' % wm_fp)
         params.extend([
             'e=%s' % signature['refined'].get('mtime_ns', 0),
             'o=%s' % signature['original'].get('mtime_ns', 0),
