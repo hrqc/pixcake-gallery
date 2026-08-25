@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素蛋糕 · 选片</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#191d26; --card2:#222734; --border:#2b3040;
+    --text:#e9ebf0; --muted:#9aa3b5; --accent:#e8b339; --accent2:#ffcf6e;
+    --ok:#3fb98a; --err:#e05b5b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{background:var(--bg); color:var(--text);
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; font-size:14px}
+  a{color:inherit; text-decoration:none}
+
+  /* ---------- 布局 ---------- */
+  .wrap{max-width:1280px; margin:0 auto; padding:18px 22px 80px}
+  .header{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px}
+  .header h1{font-size:19px; font-weight:700; display:flex; align-items:center; gap:8px}
+  .header .sub{color:var(--muted); font-size:13px}
+  .btn{background:var(--card2); color:var(--text); border:1px solid var(--border);
+       border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; white-space:nowrap}
+  .btn:hover{border-color:var(--accent); color:var(--accent2)}
+  .btn.gold{background:var(--accent); color:#1a1205; border:none; font-weight:700}
+  .btn.gold:hover{background:var(--accent2)}
+  .btn.ghost{background:transparent}
+  .spacer{flex:1}
+  .muted{color:var(--muted)}
+
+  /* ---------- 项目列表 ---------- */
+  .plist{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px}
+  .pcard{background:var(--card); border:1px solid var(--border); border-radius:12px;
+         padding:16px; cursor:pointer; transition:transform .08s, border-color .12s}
+  .pcard:hover{transform:translateY(-2px); border-color:var(--accent)}
+  .pcard .name{font-size:16px; font-weight:700; margin-bottom:6px}
+  .pcard .meta{color:var(--muted); font-size:12.5px; margin-bottom:12px; display:flex; gap:10px}
+  .pbar{height:7px; background:var(--card2); border-radius:4px; overflow:hidden}
+  .pbar>div{height:100%; background:var(--accent); border-radius:4px; transition:width .3s}
+  .pcard .empty{color:var(--err); font-size:12.5px}
+
+  /* ---------- 相册网格 ---------- */
+  .toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px}
+  .count{padding:6px 12px; background:var(--card); border:1px solid var(--border);
+         border-radius:20px; font-size:12.5px; color:var(--muted)}
+  .count b{color:var(--accent2)}
+  .filter .on{background:var(--accent); color:#1a1205; border-color:var(--accent)}
+  .grid{display:flex; flex-wrap:wrap; gap:10px}
+  .card{position:relative; flex:0 0 150px; background:var(--card); border:2px solid var(--border);
+        border-radius:8px; overflow:hidden; cursor:pointer; transition:border-color .1s, box-shadow .1s}
+  .card img{display:block; width:100%; height:auto; background:#14171e}
+  .card:hover{border-color:#5a6278}
+  .card.sel{border-color:var(--accent); box-shadow:0 0 0 2px rgba(232,179,57,.35)}
+  .card .idx{position:absolute; top:6px; left:6px; background:rgba(0,0,0,.62);
+             color:#fff; font-size:11px; padding:2px 7px; border-radius:10px; z-index:2}
+  .card.sel .idx{background:var(--accent); color:#1a1205; font-weight:700}
+  .card .chk{position:absolute; top:5px; right:5px; width:22px; height:22px; border-radius:50%;
+             background:rgba(0,0,0,.55); border:2px solid rgba(255,255,255,.5); color:transparent;
+             display:flex; align-items:center; justify-content:center; font-size:13px; z-index:2}
+  .card.sel .chk{background:var(--accent); border-color:var(--accent); color:#1a1205}
+  .card .cap{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(transparent,rgba(0,0,0,.75));
+             color:#fff; font-size:11px; padding:14px 7px 5px; z-index:2}
+  .hint{color:var(--muted); margin-top:40px; text-align:center; font-size:14px}
+  .export-status{display:none; margin:0 0 14px; padding:9px 12px; border-left:3px solid var(--accent);
+                 background:var(--card); color:var(--muted); font-size:13px; line-height:1.5}
+  .export-status.err{border-left-color:var(--err); color:#ff9c9c}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  /* ---------- 灯箱 ---------- */
+  #lb{position:fixed; inset:0; background:rgba(6,8,12,.94); z-index:50; display:none;
+      flex-direction:column; align-items:center; justify-content:center}
+  #lb.show{display:flex}
+  #lb img{max-width:92vw; max-height:84vh; object-fit:contain; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.6)}
+  #lb .bar{position:absolute; top:0; left:0; right:0; padding:12px 18px; display:flex;
+           align-items:center; gap:12px; color:#fff; background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #lb .bar .t{font-size:14px}
+  #lb .nav{position:absolute; top:50%; transform:translateY(-50%); font-size:34px; color:#fff;
+           background:rgba(255,255,255,.08); border:none; border-radius:50%; width:52px; height:52px;
+           cursor:pointer; display:flex; align-items:center; justify-content:center}
+  #lb .nav:hover{background:rgba(255,255,255,.2)}
+  #lb .nav.prev{left:14px} #lb .nav.next{right:14px}
+  #lb .key{position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+           color:var(--muted); font-size:12px; text-align:center}
+  .lbx{font-size:16px; padding:8px 16px; border-radius:8px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25)}
+  .lbx.sel{background:var(--accent); color:#1a1205; border-color:var(--accent)}
+
+  /* ---------- 登录 ---------- */
+  #login{position:fixed; inset:0; background:var(--bg); z-index:90; display:none;
+         align-items:center; justify-content:center}
+  #login.show{display:flex}
+  #login .box{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:30px; width:320px}
+  #login .box h2{font-size:17px; margin-bottom:6px}
+  #login .box p{color:var(--muted); font-size:12.5px; margin-bottom:16px}
+  #login input{width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
+               background:var(--card2); color:var(--text); font-size:14px; margin-bottom:12px}
+  #login .err{color:var(--err); font-size:12.5px; margin-bottom:10px; display:none}
+
+  /* ---------- 交付管理 ---------- */
+  #dl{position:fixed; inset:0; background:rgba(6,8,12,.72); z-index:80; display:none;
+      align-items:flex-start; justify-content:center; padding:20px 14px; overflow-y:auto}
+  #dl.show{display:flex}
+  #dl .mwrap{background:var(--card); border:1px solid var(--border); border-radius:14px;
+             width:100%; max-width:560px; padding:18px; margin:auto 0}
+  #dl .mhead{display:flex; align-items:center; gap:10px; margin-bottom:14px}
+  #dl .mhead h2{font-size:17px; flex:1}
+  #dl .mtab{display:flex; gap:8px; margin-bottom:16px}
+  #dl .mtab button{flex:1; padding:9px; border-radius:8px; border:1px solid var(--border);
+             background:var(--card2); color:var(--muted); cursor:pointer; font-size:13.5px}
+  #dl .mtab button.on{background:var(--accent); color:#1a1205; border-color:var(--accent); font-weight:700}
+  #dl .field{margin-bottom:12px}
+  #dl .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px}
+  #dl .field input[type=text],#dl .field input[type=number]{
+      width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border);
+      background:var(--card2); color:var(--text); font-size:14px}
+  #dl .field .qrrow{display:flex; gap:8px; align-items:center}
+  #dl .field .qrrow input[type=file]{flex:1; font-size:12.5px; color:var(--muted)}
+  #dl .field.row2{display:flex; align-items:center; gap:12px}
+  #dl .sw{display:flex; align-items:center; gap:7px; font-size:13.5px; color:var(--text)!important}
+  #dl .sw input{width:16px; height:16px; accent-color:var(--accent)}
+  #dl .linkbox{margin-top:16px; padding:12px; border:1px dashed var(--border); border-radius:10px}
+  #dl .linkbox .lb-t{font-size:12.5px; color:var(--muted); margin-bottom:6px}
+  #dl .linkbox .lb-link{font-size:13.5px; word-break:break-all; color:var(--accent2); margin-bottom:10px}
+  #dl .linkbox .lb-btns{display:flex; gap:8px; flex-wrap:wrap}
+  #dl .qrimg{display:block; margin:14px auto 0; max-width:220px; border-radius:10px; border:1px solid var(--border)}
+  #dl .ord{border:1px solid var(--border); border-radius:10px; padding:13px; margin-bottom:12px; background:var(--card)}
+  #dl .otop{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  #dl .otop b{font-size:14px}
+  #dl .ost{margin-left:auto; font-size:12px; padding:3px 9px; border-radius:12px}
+  #dl .ost.submitted{background:#57432a; color:#ffcf6e}
+  #dl .ost.confirmed{background:#16423a; color:#3fb98a}
+  #dl .ost.downloaded{background:#2b3346; color:#9aa3b5}
+  #dl .ometa{font-size:13.5px; color:var(--muted); margin-bottom:4px}
+  #dl .ometa b{color:var(--accent2)}
+  #dl .ocust{font-size:13px; color:var(--text); margin-bottom:2px}
+  #dl .otime{font-size:11.5px; color:var(--muted); margin-bottom:8px}
+  #dl .onotes{margin:6px 0; padding:8px 10px; background:var(--card2); border-radius:8px; font-size:12.5px; max-height:150px; overflow-y:auto}
+  #dl .onotes div{color:var(--text); line-height:1.7}
+  #dl .onotes b{color:var(--accent2)}
+  #dl .oact{display:flex; gap:8px; margin-top:10px}
+  #dl .oact .btn{flex:1}
+  #dl .btn.ghost{background:transparent; color:var(--muted)}
+
+  /* ---------- 卡密管理面板 ---------- */
+  #lic{position:fixed; inset:0; background:rgba(8,10,14,.82); z-index:200; display:none;
+       align-items:flex-start; justify-content:center; padding:24px 18px; overflow-y:auto}
+  #lic.show{display:flex}
+  #lic .box{width:100%; max-width:1040px; background:var(--card); border:1px solid var(--border);
+            border-radius:14px; padding:20px 22px}
+  #lic .lhead{display:flex; align-items:center; gap:12px; margin-bottom:16px}
+  #lic .lhead h2{font-size:17px}
+  #lic .lhead .x{margin-left:auto; cursor:pointer; color:var(--muted); font-size:20px; padding:2px 8px}
+  #lic .lhead .x:hover{color:var(--err)}
+  #lic .lstats{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px}
+  #lic .stat{background:var(--card2); border:1px solid var(--border); border-radius:10px;
+             padding:8px 14px; font-size:12.5px}
+  #lic .stat b{font-size:17px; margin-right:5px; color:var(--accent2)}
+  #lic .gen{background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px}
+  #lic .gen .row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end}
+  #lic .f{display:flex; flex-direction:column; gap:5px}
+  #lic .f label{font-size:12px; color:var(--muted)}
+  #lic input[type=text], #lic input[type=number], #lic select{
+    background:var(--card); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:13px; outline:none; min-width:90px}
+  #lic input:focus, #lic select:focus{border-color:var(--accent)}
+  #lic input[type=checkbox]{width:16px; height:16px; accent-color:var(--accent)}
+  #lic .ck{display:flex; align-items:center; gap:6px; padding:9px 0}
+  #lic .ck label{color:var(--muted); font-size:12.5px}
+  #lic .genout{margin-top:12px; padding:12px; border:1px dashed var(--border); border-radius:10px; display:none}
+  #lic .genout.show{display:block}
+  #lic .genout .go-t{font-size:12.5px; color:var(--muted); margin-bottom:8px; display:flex; gap:8px; align-items:center}
+  #lic .keys{font-family:ui-monospace,Consolas,monospace; font-size:13px; line-height:1.9; word-break:break-all}
+  #lic .keys b{color:var(--accent2); cursor:pointer}
+  #lic .keys b:hover{text-decoration:underline}
+  #lic .tblwrap{overflow-x:auto; border:1px solid var(--border); border-radius:10px}
+  #lic table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px}
+  #lic th{background:var(--card2); color:var(--muted); text-align:left; padding:9px 10px;
+          font-weight:600; white-space:nowrap; position:sticky; top:0}
+  #lic td{padding:8px 10px; border-top:1px solid var(--border); white-space:nowrap; vertical-align:middle}
+  #lic td:first-child{font-family:ui-monospace,Consolas,monospace}
+  #lic .s{display:inline-block; padding:2px 8px; border-radius:10px; font-size:11.5px}
+  #lic .s.unused{background:#2b3346; color:#9aa3b5}
+  #lic .s.active{background:#16423a; color:#3fb98a}
+  #lic .s.disabled{background:#4a2323; color:#ff9d9d}
+  #lic .s.expired{background:#57432a; color:#ffcf6e}
+  #lic .op{display:flex; gap:6px}
+  #lic .op .btn{padding:4px 10px; font-size:12px}
+
+  /* ---------- 摄影师管理面板 ---------- */
+  #pho{position:fixed; inset:0; background:rgba(8,10,14,.82); z-index:210; display:none;
+       align-items:flex-start; justify-content:center; padding:24px 18px; overflow-y:auto}
+  #pho.show{display:flex}
+  #pho .box{width:100%; max-width:1100px; background:var(--card); border:1px solid var(--border);
+            border-radius:14px; padding:20px 22px}
+  #pho .lhead{display:flex; align-items:center; gap:12px; margin-bottom:16px}
+  #pho .lhead h2{font-size:17px}
+  #pho .lhead .x{margin-left:auto; cursor:pointer; color:var(--muted); font-size:20px; padding:2px 8px}
+  #pho .lhead .x:hover{color:var(--err)}
+  #pho .lstats{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px}
+  #pho .stat{background:var(--card2); border:1px solid var(--border); border-radius:10px;
+             padding:8px 14px; font-size:12.5px}
+  #pho .stat b{font-size:17px; margin-right:5px; color:var(--accent2)}
+  #pho .tblwrap{overflow-x:auto; border:1px solid var(--border); border-radius:10px}
+  #pho table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:980px}
+  #pho th{background:var(--card2); color:var(--muted); text-align:left; padding:9px 10px;
+          font-weight:600; white-space:nowrap; position:sticky; top:0}
+  #pho td{padding:8px 10px; border-top:1px solid var(--border); white-space:nowrap; vertical-align:middle}
+  #pho td:first-child{font-family:ui-monospace,Consolas,monospace}
+  #pho .s{display:inline-block; padding:2px 8px; border-radius:10px; font-size:11.5px}
+  #pho .s.active{background:#16423a; color:#3fb98a}
+  #pho .s.disabled{background:#4a2323; color:#ff9d9d}
+  #pho .site{color:var(--accent); text-decoration:none; font-family:ui-monospace,Consolas,monospace; font-size:12px}
+  #pho .op{display:flex; gap:6px}
+  #pho .op .btn{padding:4px 10px; font-size:12px}
+  #pho input{background:var(--card); border:1px solid var(--border); color:var(--text);
+             border-radius:6px; padding:4px 8px; font-size:12px; width:110px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="box">
+    <h2>需要访问令牌</h2>
+    <p>本选片系统受令牌保护，请输入启动时显示的访问令牌。</p>
+    <input id="tok" type="password" placeholder="访问令牌" autocomplete="off">
+    <div class="err" id="tokerr">令牌不正确</div>
+    <button class="btn gold" style="width:100%" onclick="doLogin()">进入</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- 项目列表 -->
+  <div id="view-list">
+    <div class="header">
+      <h1>📷 选片项目</h1>
+      <span class="sub">像素蛋糕精修照片 · 实时读取</span>
+      <span class="spacer"></span>
+      <button class="btn" id="phoBtn" onclick="openPhoPanel()" style="display:none">摄影师管理</button>
+      <button class="btn" id="licBtn" onclick="openLicPanel()" style="display:none">卡密管理</button>
+      <button class="btn" onclick="loadProjects()">刷新</button>
+    </div>
+    <div class="plist" id="plist"></div>
+  </div>
+
+  <!-- 相册选片 -->
+  <div id="view-gallery" style="display:none">
+    <div class="header">
+      <button class="btn" onclick="go('#/')">← 返回</button>
+      <h1 id="gname" title="点击改名" onclick="renameProject()">…</h1>
+      <span class="sub" id="gsub"></span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="refreshProject()">刷新</button>
+      <button class="btn gold" id="exportZipBtn" onclick="exportZip()">下载选中照片</button>
+      <button class="btn gold" style="background:#2ea97d" onclick="openDelivery()">交付管理</button>
+      <button class="btn" onclick="exportXlsx(false)">导出Excel</button>
+      <button class="btn" onclick="exportXlsx(true)">已选Excel</button>
+    </div>
+    <div class="toolbar">
+      <span class="count">共 <b id="cTotal">0</b> 张 · 已选 <b id="cSel">0</b> 张</span>
+      <span class="filter">
+        <button class="btn" id="fAll" onclick="setFilter(false)">全部</button>
+        <button class="btn" id="fSel" onclick="setFilter(true)">只看已选</button>
+      </span>
+      <span class="muted">单击选中/取消 · 双击看大图</span>
+    </div>
+    <div class="export-status" id="exportStatus"></div>
+    <div class="grid" id="grid"></div>
+    <div class="hint" id="emptyHint" style="display:none"></div>
+  </div>
+</div>
+
+<!-- 交付管理 -->
+<div id="dl">
+  <div class="mwrap">
+    <div class="mhead">
+      <h2>📦 交付管理</h2>
+      <button class="btn" onclick="closeDelivery()">✕</button>
+    </div>
+    <div class="mtab">
+      <button id="mtab-setup" class="on" onclick="mtab('setup')">交付设置</button>
+      <button id="mtab-orders" onclick="mtab('orders')">订单结算</button>
+    </div>
+    <div id="mpane-setup">
+      <div class="field"><label>分享标题（客户看到的）</label><input id="dfTitle" type="text" placeholder="客户相册标题"></div>
+      <div class="field"><label>单价（元/张，0 = 免费）</label><input id="dfPrice" type="number" min="0" step="1"></div>
+      <div class="field"><label>免费张数（前 N 张不计费，0 = 无）</label><input id="dfFree" type="number" min="0" step="1" value="0"></div>
+      <div class="field"><label>阶梯门槛（计费满 N 张触发减价，0 = 无）</label><input id="dfTierMin" type="number" min="0" step="1" value="0"></div>
+      <div class="field"><label>阶梯减价（元/张，满门槛后每张减此价）</label><input id="dfTierDisc" type="number" min="0" step="0.1" value="0"></div>
+      <div class="field"><label>公网地址（如 https://db1of18959019.vicp.fun，用于生成客户链接/二维码）</label><input id="dfBase" type="text" placeholder="https://db1of18959019.vicp.fun"></div>
+      <div class="field"><label>收款码（客户扫码转账，选好后点「保存设置」自动上传）</label>
+        <input id="dfQrFile" type="file" accept="image/*">
+      </div>
+      <div class="field row2">
+        <label class="sw"><input id="dfOn" type="checkbox"> 启用交付</label>
+        <span class="spacer"></span>
+        <button class="btn" onclick="saveSetup()">保存设置</button>
+      </div>
+      <div class="linkbox">
+        <div class="lb-t">交付链接（发给客户 / 生成二维码）</div>
+        <div class="lb-link"><a id="dfLink" target="_blank" rel="noopener">…</a></div>
+        <div class="lb-btns">
+          <button class="btn" onclick="copyLink()">复制链接</button>
+          <button class="btn" onclick="showQr()">显示二维码</button>
+          <button class="btn" onclick="resetCode()">重置交付码</button>
+        </div>
+        <img id="dfQrImg" class="qrimg" alt="二维码">
+      </div>
+    </div>
+    <div id="mpane-orders" style="display:none">
+      <div id="dlOrders"></div>
+      <div class="hint" id="dlEmpty" style="display:none">还没有订单。客户提交选片后会出现在这里。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 灯箱 -->
+<div id="lb">
+  <div class="bar">
+    <span class="t" id="lbTitle"></span>
+    <span class="spacer"></span>
+    <button class="lbx" id="lbSel" onclick="lbToggleSel()">选 中</button>
+    <button class="lbx" onclick="closeLB()">✕</button>
+  </div>
+  <button class="nav prev" onclick="lbNav(-1)">‹</button>
+  <img id="lbImg" alt="">
+  <button class="nav next" onclick="lbNav(1)">›</button>
+  <div class="key">← → 切换 · S 选中 · Esc 关闭</div>
+</div>
+
+<!-- 卡密管理 -->
+<div id="lic">
+  <div class="box">
+    <div class="lhead">
+      <h2>🔑 卡密管理</h2>
+      <span class="x" onclick="closeLicPanel()">✕</span>
+    </div>
+    <div class="lstats" id="licStats"></div>
+    <div class="gen">
+      <div class="row">
+        <div class="f"><label>套餐</label>
+          <select id="gPlan">
+            <option value="月卡">月卡</option>
+            <option value="季卡">季卡</option>
+            <option value="年卡">年卡</option>
+            <option value="永久卡">永久卡</option>
+            <option value="体验卡">体验卡</option>
+            <option value="张数卡">张数卡</option>
+          </select>
+        </div>
+        <div class="f"><label>时长(天, 0=永久)</label><input id="gDays" type="number" value="30" min="0"></div>
+        <div class="f"><label>时长(小时)</label><input id="gHours" type="number" value="0" min="0"></div>
+        <div class="f"><label>张数(0=不限)</label><input id="gQuota" type="number" value="0" min="0"></div>
+        <div class="f"><label>数量</label><input id="gCount" type="number" value="1" min="1" max="100"></div>
+        <div class="f"><label>备注(客户名/订单号)</label><input id="gRemark" type="text" maxlength="60" style="min-width:150px"></div>
+        <div class="f ck"><input id="gBind" type="checkbox" checked><label for="gBind">绑定设备</label></div>
+        <button class="btn gold" onclick="licGenerate()">生成卡密</button>
+      </div>
+      <div class="genout" id="genOut">
+        <div class="go-t"><span>已生成 <b id="genN">0</b> 张（点击卡密复制）</span>
+          <button class="btn" onclick="copyAll()">复制全部</button>
+          <button class="btn" onclick="closeGenOut()">收起</button></div>
+        <div class="keys" id="genKeys"></div>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center">
+      <span class="muted" style="font-size:13px">卡密列表</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="licExport(false)">导出全部</button>
+      <button class="btn" onclick="licExport(true)">导出未激活</button>
+    </div>
+    <div class="tblwrap">
+      <table>
+        <thead>
+          <tr><th>卡密</th><th>套餐</th><th>状态</th><th>绑定设备</th>
+              <th>激活时间</th><th>到期/剩余</th><th>用量</th><th>备注</th><th>操作</th></tr>
+        </thead>
+        <tbody id="licTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 摄影师管理 -->
+<div id="pho">
+  <div class="box">
+    <div class="lhead">
+      <h2>📡 摄影师管理</h2>
+      <span class="x" onclick="closePhoPanel()">✕</span>
+    </div>
+    <div class="lstats" id="phoStats"></div>
+    <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center">
+      <span class="muted" style="font-size:13px">摄影师站点列表（点击站点链接可进入其独立选片站）</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="phoRefresh()">刷新</button>
+    </div>
+    <div class="tblwrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>名称</th><th>站点</th><th>卡密/额度</th><th>相册</th>
+              <th>订单</th><th>状态</th><th>管理员联系方式</th><th>操作</th></tr>
+        </thead>
+        <tbody id="phoTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+let S = { pid:null, project:null, photos:[], selOnly:false, lb:0, lbShown:false, exportJob:null };
+let LICS = [];
+
+// ---------- API ----------
+async function api(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  const r = await fetch(path, opts);
+  if (r.status === 401){ showLogin(); throw new Error('auth'); }
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+}
+function dl(url, name){
+  const a = document.createElement('a');
+  a.href = url; a.download = name || '';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ---------- 令牌 ----------
+const q = new URLSearchParams(location.search);
+const t0 = q.get('t');
+function showLogin(){ document.getElementById('login').classList.add('show'); }
+function doLogin(){
+  api('/api/login', {method:'POST', body:JSON.stringify({token:document.getElementById('tok').value})})
+    .then(()=>{ document.getElementById('login').classList.remove('show'); route(); })
+    .catch(()=>{ document.getElementById('tokerr').style.display='block'; });
+}
+function seedToken(){
+  if (!t0) return route();
+  api('/api/login', {method:'POST', body:JSON.stringify({token:t0})})
+    .then(()=>{ q.delete('t'); history.replaceState(null,'', q.toString() ? '?'+q.toString()+location.hash : location.hash); route(); })
+    .catch(()=>{ showLogin(); });
+}
+
+// ---------- 路由 ----------
+function go(h){
+  if (location.hash === h){ route(); return; }   // 重复点同一目标, hash 不变也要刷新
+  location.hash = h;
+}
+function route(){
+  const h = location.hash || '#/';
+  if (h.indexOf('#/p/') === 0){
+    const pid = h.slice(4).split('?')[0];
+    openProject(pid);
+  } else showList();
+}
+window.addEventListener('hashchange', route);
+
+// ---------- 项目列表 ----------
+async function loadProjects(){
+  try{
+    const j = await api('/api/projects');
+    const el = document.getElementById('plist');
+    el.innerHTML = '';
+    const projs = j.projects.filter(p=>p.photo_count>0);
+    if (!projs.length){ el.innerHTML = '<div class="hint">还没有找到精修照片。请先在像素蛋糕里精修照片，再点「刷新」。</div>'; return; }
+    for (const p of projs){
+      const d = document.createElement('div');
+      d.className = 'pcard';
+      const pct = p.photo_count ? Math.round(p.sel_count*100/p.photo_count) : 0;
+      d.innerHTML =
+        '<div class="name">'+esc(p.name||p.album_id)+'</div>'+
+        '<div class="meta"><span>'+p.photo_count+' 张</span><span>已选 '+p.sel_count+'</span></div>'+
+        '<div class="pbar"><div style="width:'+pct+'%"></div></div>';
+      d.onclick = ()=>go('#/p/'+p.id);
+      el.appendChild(d);
+    }
+  }catch(e){}
+}
+function showList(){
+  document.getElementById('view-list').style.display='block';
+  document.getElementById('view-gallery').style.display='none';
+  loadProjects();
+}
+
+// ---------- 相册 ----------
+async function openProject(pid){
+  S.pid = pid;
+  document.getElementById('view-list').style.display='none';
+  document.getElementById('view-gallery').style.display='block';
+  await refreshProject();
+}
+async function refreshProject(){
+  try{
+    const j = await api('/api/project?p='+encodeURIComponent(S.pid));
+    S.project = j.project; S.photos = j.photos;
+    document.getElementById('gname').textContent = j.project.name || j.project.album_id;
+    document.getElementById('gsub').textContent = j.project.album_id || '';
+    renderGallery();
+  }catch(e){}
+}
+function setFilter(v){
+  S.selOnly = v;
+  document.getElementById('fAll').classList.toggle('on', !v);
+  document.getElementById('fSel').classList.toggle('on', v);
+  renderGallery();
+}
+let clickTimer = null;
+function renderGallery(){
+  const sy = window.scrollY;
+  const shown = S.selOnly ? S.photos.filter(p=>p.selected) : S.photos;
+  document.getElementById('cTotal').textContent = S.photos.length;
+  document.getElementById('cSel').textContent = S.photos.filter(p=>p.selected).length;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  document.getElementById('emptyHint').style.display = shown.length ? 'none':'block';
+  document.getElementById('emptyHint').textContent = S.selOnly ? '还没有选中的照片。' : '该相册还没有精修照片，去像素蛋糕精修后在程序里点「刷新」。';
+  S.photos.forEach((ph, idx)=>{
+    if (S.selOnly && !ph.selected) return;
+    const d = document.createElement('div');
+    d.className = 'card' + (ph.selected?' sel':'');
+    d.innerHTML = '<span class="idx">'+(idx+1)+'</span><span class="chk">✓</span>'+
+                  '<img loading="lazy" src="'+ph.thumb_url+'" alt="'+esc(ph.photo_id)+'">'+
+                  '<span class="cap">'+esc(ph.photo_id)+'</span>';
+    d.onclick = (ev)=>{
+      if (ev.detail === 2) return;
+      if (clickTimer) clearTimeout(clickTimer);
+      clickTimer = setTimeout(()=>toggleSelect(ph), 220);   // 延迟, 让双击不被误判为单击
+    };
+    d.ondblclick = ()=>{ if (clickTimer) clearTimeout(clickTimer); clickTimer = null; openLB(idx); };
+    grid.appendChild(d);
+  });
+  requestAnimationFrame(()=>window.scrollTo(0, sy));
+}
+async function toggleSelect(ph){
+  ph.selected = !ph.selected;
+  await api('/api/select', {method:'POST', body:JSON.stringify({key:ph.key, selected:ph.selected})})
+    .catch(()=>{ ph.selected = !ph.selected; });
+  renderGallery();
+  if (S.lbShown) updateLB();
+}
+
+// ---------- 改名 ----------
+function renameProject(){
+  const cur = S.project.name || S.project.album_id || '';
+  const name = prompt('项目名称', cur);
+  if (!name || name === cur) return;
+  api('/api/rename', {method:'POST', body:JSON.stringify({p:S.pid, name:name})})
+    .then(()=>{ document.getElementById('gname').textContent = name; S.project.name = name; })
+    .catch(()=>{});
+}
+
+// ---------- 灯箱 ----------
+function openLB(idx){ S.lb = idx; S.lbShown = true; document.getElementById('lb').classList.add('show'); updateLB(); }
+function closeLB(){ S.lbShown = false; document.getElementById('lb').classList.remove('show'); document.getElementById('lbImg').src=''; }
+function lbNav(d){ if (!S.photos.length) return; S.lb = (S.lb + d + S.photos.length) % S.photos.length; updateLB(); }
+function updateLB(){
+  const ph = S.photos[S.lb];
+  document.getElementById('lbImg').src = ph.full_url;
+  document.getElementById('lbTitle').textContent = (S.lb+1)+' / '+S.photos.length+' · '+ph.photo_id;
+  const b = document.getElementById('lbSel');
+  b.textContent = ph.selected ? '取消选中' : '选 中';
+  b.classList.toggle('sel', ph.selected);
+}
+function lbToggleSel(){ toggleSelect(S.photos[S.lb]); }
+document.addEventListener('keydown', e=>{
+  if (!S.lbShown) return;
+  if (e.key==='Escape') closeLB();
+  else if (e.key==='ArrowLeft') lbNav(-1);
+  else if (e.key==='ArrowRight') lbNav(1);
+  else if (e.key==='s'||e.key==='S') lbToggleSel();
+});
+document.getElementById('lb').addEventListener('click', e=>{
+  if (e.target.id === 'lb') closeLB();   // 点空白关闭
+});
+
+// ---------- 导出 ----------
+function exportXlsx(selOnly){
+  dl('/api/export_xlsx?p='+encodeURIComponent(S.pid)+(selOnly?'&sel=1':''), '');
+}
+function exportMessage(text, isError){
+  const el = document.getElementById('exportStatus');
+  el.textContent = text;
+  el.classList.toggle('err', !!isError);
+  el.style.display = text ? 'block' : 'none';
+}
+function exportProgress(job){
+  const total = job.total || 0;
+  if (job.stage === 'zipping') return '正在打包：'+(job.zipped||0)+' / '+total+' 张';
+  return '正在去除水印：'+(job.processed||0)+' / '+total+' 张';
+}
+async function exportZip(){
+  if (S.exportJob) return;
+  const selected = S.photos.filter(p=>p.selected).length;
+  if (!selected){ alert('请先选择要下载的照片'); return; }
+  const btn = document.getElementById('exportZipBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中…';
+  exportMessage('正在创建导出任务…', false);
+  try{
+    let job = await api('/api/export_zip', {
+      method:'POST', body:JSON.stringify({p:S.pid, selected_only:true})
+    });
+    S.exportJob = job.id;
+    const deadline = Date.now() + 20*60*1000;
+    while (job.status === 'queued' || job.status === 'running'){
+      if (Date.now() > deadline) throw new Error('处理超时，请重新发起导出');
+      exportMessage(exportProgress(job), false);
+      await new Promise(resolve=>setTimeout(resolve, 700));
+      job = await api('/api/export_status?id='+encodeURIComponent(S.exportJob));
+    }
+    if (job.status !== 'ready'){
+      const failures = (job.failures||[]).map(f=>(f.photo_id?f.photo_id+'：':'')+(f.message||f.code)).join('；');
+      exportMessage('导出失败：'+(failures||'未知错误'), true);
+      alert('导出失败\n'+(failures||'未知错误'));
+      return;
+    }
+    const failedN = (job.failures||[]).length;
+    if (failedN){
+      const names = (job.failures||[]).map(f=>f.photo_id).filter(Boolean).join('、');
+      exportMessage('处理完成，下载已开始。'+failedN+' 张照片处理失败'+(names?'：'+names:''), true);
+    } else {
+      exportMessage('处理完成，下载已开始。', false);
+    }
+    dl('/api/export_download?id='+encodeURIComponent(S.exportJob), job.filename||'');
+  }catch(e){
+    exportMessage('导出失败：'+e.message, true);
+  }finally{
+    S.exportJob = null;
+    btn.disabled = false;
+    btn.textContent = '下载选中照片';
+  }
+}
+
+// ---------- 工具 ----------
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- 交付管理 ----------
+let DL = { pid:null, link:'' };
+
+async function openDelivery(){
+  if (!S.pid) return;
+  DL.pid = S.pid;
+  document.getElementById('dl').classList.add('show');
+  mtab('setup');
+  await loadDeliverySetup();
+  await loadDeliveryOrders();
+}
+function closeDelivery(){ document.getElementById('dl').classList.remove('show'); }
+function mtab(t){
+  document.getElementById('mtab-setup').classList.toggle('on', t==='setup');
+  document.getElementById('mtab-orders').classList.toggle('on', t==='orders');
+  document.getElementById('mpane-setup').style.display = t==='setup'?'block':'none';
+  document.getElementById('mpane-orders').style.display = t==='orders'?'block':'none';
+}
+async function loadDeliverySetup(){
+  try{
+    const j = await api('/api/delivery/setup?p='+encodeURIComponent(DL.pid));
+    DL.link = j.link;
+    document.getElementById('dfTitle').value = j.config.title||'';
+    document.getElementById('dfPrice').value = j.config.price||0;
+    document.getElementById('dfFree').value = j.config.free_count||0;
+    document.getElementById('dfTierMin').value = j.config.tier_min||0;
+    document.getElementById('dfTierDisc').value = j.config.tier_discount||0;
+    document.getElementById('dfBase').value = j.config.public_base||'';
+    document.getElementById('dfOn').checked = !!j.config.enabled;
+    document.getElementById('dfLink').textContent = j.link;
+    document.getElementById('dfLink').href = j.link;
+    document.getElementById('dfQrImg').style.display='none';
+  }catch(e){}
+}
+async function saveSetup(){
+  try{
+    // 如果选了收款码图片，先上传（和保存合并成一步）
+    const qrFile = document.getElementById('dfQrFile').files[0];
+    let qrUploaded = false;
+    if (qrFile){
+      qrUploaded = await uploadQr();
+      if (!qrUploaded) return;
+    }
+    const j = await api('/api/delivery/setup', {method:'POST', body:JSON.stringify({
+      p:DL.pid,
+      title:document.getElementById('dfTitle').value,
+      price:parseFloat(document.getElementById('dfPrice').value)||0,
+      free_count:parseInt(document.getElementById('dfFree').value)||0,
+      tier_min:parseInt(document.getElementById('dfTierMin').value)||0,
+      tier_discount:parseFloat(document.getElementById('dfTierDisc').value)||0,
+      public_base:document.getElementById('dfBase').value,
+      enabled:document.getElementById('dfOn').checked,
+    })});
+    DL.link = j.link;
+    document.getElementById('dfLink').textContent = j.link;
+    document.getElementById('dfLink').href = j.link;
+    alert(qrUploaded ? '设置已保存（含收款码）' : '设置已保存');
+  }catch(e){ alert(e.message); }
+}
+async function resetCode(){
+  if (!confirm('重置后旧链接立即失效，确定继续？')) return;
+  try{
+    const j = await api('/api/delivery/resetcode', {method:'POST', body:JSON.stringify({p:DL.pid})});
+    DL.link = j.link;
+    document.getElementById('dfLink').textContent = j.link;
+    document.getElementById('dfLink').href = j.link;
+  }catch(e){ alert(e.message); }
+}
+function copyLink(){
+  if (navigator.clipboard) navigator.clipboard.writeText(DL.link).then(()=>alert('链接已复制'));
+  else alert(DL.link);
+}
+function showQr(){
+  document.getElementById('dfQrImg').src = '/api/delivery/qr?p='+encodeURIComponent(DL.pid);
+  document.getElementById('dfQrImg').style.display='block';
+}
+function uploadQr(){
+  // 返回 Promise<boolean>: 选文件则上传, 成功 true; 没选文件 true(跳过); 失败 false
+  return new Promise((resolve)=>{
+    const f = document.getElementById('dfQrFile').files[0];
+    if (!f){ resolve(true); return; }
+    const fr = new FileReader();
+    fr.onload = async ()=>{
+      try{
+        await api('/api/delivery/uploadqr', {method:'POST', body:JSON.stringify({p:DL.pid, data_url:fr.result})});
+        resolve(true);
+      }catch(e){ alert(e.message); resolve(false); }
+    };
+    fr.readAsDataURL(f);
+  });
+}
+async function loadDeliveryOrders(){
+  try{
+    const j = await api('/api/delivery/stats?p='+encodeURIComponent(DL.pid));
+    const box = document.getElementById('dlOrders');
+    box.innerHTML = '';
+    document.getElementById('dlEmpty').style.display = j.orders.length?'none':'block';
+    const stTxt = {submitted:'待确认', confirmed:'已同意', downloaded:'已下载'};
+    j.orders.forEach(o=>{
+      const d = document.createElement('div');
+      d.className = 'ord';
+      const notelist = (o.photos||[]).filter(p=>p.note);
+      let notes = '';
+      if (notelist.length)
+        notes = '<div class="onotes">'+notelist.map(p=>'<div><b>'+esc(p.photo_id)+'</b>：'+esc(p.note)+'</div>').join('')+'</div>';
+      const freeInfo = (o.free_count||0)>0 && (o.free_count||0)<o.count
+        ? '　（免费 '+o.free_count+' 张）' : '';
+      const priceLine = o.price>0
+        ? o.paid_count+' 张 × ¥'+o.price+freeInfo+' = 应付 <b>¥'+o.total+'</b>　客户实付 <b>¥'+(o.paid_amount==null?'':o.paid_amount)+'</b>'
+        : o.count+' 张（免费）';
+      d.innerHTML =
+        '<div class="otop"><b>订单 #'+o.id+'</b><span class="ost '+o.status+'">'+o.status+'</span></div>'+
+        '<div class="ometa">'+priceLine+'</div>'+
+        (o.customer_name?'<div class="ocust">👤 '+esc(o.customer_name)+'</div>':'')+
+        (o.customer_msg?'<div class="ocust">💬 '+esc(o.customer_msg)+'</div>':'')+
+        '<div class="otime">'+fmtTime(o.created_at)+'</div>'+notes+
+        (o.status==='submitted'
+          ? '<div class="oact"><button class="btn gold" onclick="agreeOrder('+o.id+')">✓ 同意下载</button>'+
+            '<button class="btn" onclick="rejectOrder('+o.id+')">✕ 拒绝</button></div>' : '');
+      box.appendChild(d);
+    });
+  }catch(e){}
+}
+function fmtTime(ts){
+  if (!ts) return '';
+  const d = new Date(ts*1000);
+  const p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+async function agreeOrder(id){
+  if (!confirm('确认已收到付款？客户将可以下载选中照片。')) return;
+  try{
+    await api('/api/delivery/confirm', {method:'POST', body:JSON.stringify({order_id:id, agree:true})});
+    await loadDeliveryOrders();
+  }catch(e){ alert(e.message); }
+}
+async function rejectOrder(id){
+  if (!confirm('拒绝并作废该订单？客户需要重新选片。')) return;
+  try{
+    await api('/api/delivery/confirm', {method:'POST', body:JSON.stringify({order_id:id, reject:true})});
+    await loadDeliveryOrders();
+  }catch(e){ alert(e.message); }
+}
+
+// ---------- 卡密授权 ----------
+async function licenseGate(){
+  try{
+    const r = await fetch('/api/license/meta');
+    const j = await r.json();
+    if (j.admin){
+      document.getElementById('licBtn').style.display = '';
+      document.getElementById('phoBtn').style.display = '';
+      return true;
+    }
+    if (j.state !== 'ok'){
+      location.href = '/activate.html';
+      return false;
+    }
+  }catch(e){}
+  return true;
+}
+
+function openLicPanel(){ document.getElementById('lic').classList.add('show'); licRefresh(); }
+function closeLicPanel(){ document.getElementById('lic').classList.remove('show'); }
+document.getElementById('lic').addEventListener('click', function(e){
+  if (e.target === this) closeLicPanel();
+});
+
+// ---------- 摄影师管理 ----------
+function openPhoPanel(){ document.getElementById('pho').classList.add('show'); phoRefresh(); }
+function closePhoPanel(){ document.getElementById('pho').classList.remove('show'); }
+document.getElementById('pho').addEventListener('click', function(e){
+  if (e.target === this) closePhoPanel();
+});
+async function phoRefresh(){
+  try{
+    const j = await api('/api/admin/photographers');
+    const rows = j.photographers || [];
+    let active = 0, used = 0;
+    rows.forEach(p => { if (p.status==='active') active++; if ((p.orders||0)>0) used++; });
+    document.getElementById('phoStats').innerHTML =
+      '<div class="stat">摄影师 <b>'+rows.length+'</b></div>'+
+      '<div class="stat">启用中 <b>'+active+'</b></div>'+
+      '<div class="stat">有订单 <b>'+used+'</b></div>';
+    document.getElementById('phoTbody').innerHTML = rows.map(p => {
+      const c = p.card || {};
+      const cardTxt = c.plan_name
+        ? (c.plan_name+' · '+(c.unlimited_time?'永久':((c.left_days??0)+'天'))+
+           (c.unlimited_quota?'':' · '+(c.remaining??0)+'/'+(c.quota||0)+'张'))
+        : '无生效卡';
+      const site = location.origin + '/g/' + p.id + '/';
+      return '<tr>'+
+        '<td>'+p.id+'</td>'+
+        '<td><input value="'+esc(p.name)+'" onchange="phoUpdate(\''+p.id+'\',\'name\',this.value)" data-oid="'+p.id+'" data-f="name"></td>'+
+        '<td><a class="site" href="'+site+'" target="_blank">'+p.id.replace('p_','')+' ↗</a></td>'+
+        '<td>'+cardTxt+'</td>'+
+        '<td>'+p.projects+'</td>'+
+        '<td>'+p.orders+'</td>'+
+        '<td><span class="s '+p.status+'">'+(p.status==='active'?'启用':'停用')+'</span></td>'+
+        '<td><input value="'+esc(p.admin_contact||'')+'" onchange="phoUpdate(\''+p.id+'\',\'admin_contact\',this.value)" placeholder="管理员联系方式"></td>'+
+        '<td class="op">'+
+          (p.status==='active'
+            ? '<button class="btn" onclick="phoToggle(\''+p.id+'\',\'disabled\')">停用</button>'
+            : '<button class="btn" onclick="phoToggle(\''+p.id+'\',\'active\')">启用</button>')+
+        '</td></tr>';
+    }).join('');
+  }catch(e){ alert(e.message); }
+}
+async function phoUpdate(id, field, val){
+  try{
+    await api('/api/admin/photographers/update', {method:'POST', body:JSON.stringify({id, [field]:val})});
+  }catch(e){ alert(e.message); }
+}
+async function phoToggle(id, status){
+  if (status==='disabled' && !confirm('停用后该摄影师站点登录与上传都会拦截。确定？')) return;
+  try{
+    await api('/api/admin/photographers/toggle', {method:'POST', body:JSON.stringify({id, status})});
+    phoRefresh();
+  }catch(e){ alert(e.message); }
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const LIC_STATUS = {unused:['未激活','s unused'], active:['已激活','s active'],
+                    disabled:['已禁用','s disabled'], expired:['已过期','s expired']};
+async function licRefresh(){
+  try{
+    const j = await api('/api/license/admin/list');
+    LICS = j.licenses || [];
+    const st = j.stats || {};
+    document.getElementById('licStats').innerHTML =
+      '<div class="stat">总数 <b>'+st.total+'</b></div>'+
+      '<div class="stat">未激活 <b>'+(st.by_status.unused||0)+'</b></div>'+
+      '<div class="stat">已激活 <b>'+(st.by_status.active||0)+'</b></div>'+
+      '<div class="stat">已禁用 <b>'+(st.by_status.disabled||0)+'</b></div>'+
+      '<div class="stat">已过期 <b>'+(st.by_status.expired||0)+'</b></div>';
+    const tb = document.getElementById('licTbody');
+    tb.innerHTML = LICS.map(l=>{
+      const stt = LIC_STATUS[l.status] || [l.status, 's unused'];
+      const durTxt = l.duration_days ? (l.duration_days+' 天')
+        : (l.duration_hours ? (l.duration_hours+' 小时') : '');
+      const left = l.status==='active'
+        ? (l.expires_at ? fmtTime(l.expires_at) : (l.quota ? (l.quota-l.quota_used)+' 张' : '永久'))
+        : (durTxt || (l.quota? l.quota+' 张' : '—'));
+      const ops = l.status==='disabled'
+        ? '<button class="btn" onclick="licToggle(\''+l.key+'\',\'active\')">启用</button>'
+        : '<button class="btn" onclick="licToggle(\''+l.key+'\',\'disabled\')">禁用</button>';
+      return '<tr>'+
+        '<td title="点击复制" style="cursor:pointer" onclick="copyText(\''+l.key+'\')">'+l.key+'</td>'+
+        '<td>'+esc(l.plan_name)+'</td>'+
+        '<td><span class="'+stt[1]+'">'+stt[0]+'</span></td>'+
+        '<td>'+(l.bound_fp ? '<span title="'+esc(l.bound_fp)+'">'+l.bound_fp.slice(0,8)+'…</span>' : '未绑定')+'</td>'+
+        '<td>'+(l.activated_at?fmtTime(l.activated_at):'—')+'</td>'+
+        '<td>'+left+'</td>'+
+        '<td>'+(l.quota? (l.quota_used+'/'+l.quota) : '—')+'</td>'+
+        '<td>'+esc(l.remark||'')+'</td>'+
+        '<td><div class="op">'+ops+'<button class="btn" onclick="licExtend(\''+l.key+'\')">延期</button></div></td>'+
+        '</tr>';
+    }).join('') || '<tr><td colspan="9" style="color:var(--muted)">还没有卡密</td></tr>';
+  }catch(e){ alert(e.message); }
+}
+
+async function licGenerate(){
+  const plan = document.getElementById('gPlan').value;
+  // 套餐名联动: 体验卡=1小时, 月卡=30天 (先联动再读取, 保证参数生效)
+  if (plan==='体验卡'){ document.getElementById('gDays').value = 0; document.getElementById('gHours').value = 1; }
+  else if (plan==='月卡' && (parseInt(document.getElementById('gDays').value)||0)===0){ document.getElementById('gDays').value = 30; }
+  const days = parseInt(document.getElementById('gDays').value)||0;
+  const hours = parseInt(document.getElementById('gHours').value)||0;
+  const quota = parseInt(document.getElementById('gQuota').value)||0;
+  const count = Math.max(1, Math.min(100, parseInt(document.getElementById('gCount').value)||1));
+  const bind = document.getElementById('gBind').checked ? 1 : 0;
+  const remark = document.getElementById('gRemark').value.trim();
+  try{
+    const j = await api('/api/license/admin/generate', {method:'POST',
+      body:JSON.stringify({plan_name:plan, duration_days:days, duration_hours:hours, quota:quota,
+                           bind_device:bind, count:count, remark:remark})});
+    const box = document.getElementById('genOut');
+    document.getElementById('genN').textContent = j.count;
+    document.getElementById('genKeys').innerHTML =
+      j.keys.map(k=>'<b onclick="copyText(\''+k+'\')">'+k+'</b>').join('<br>');
+    box.classList.add('show');
+    licRefresh();
+  }catch(e){ alert(e.message); }
+}
+function copyText(t){
+  navigator.clipboard.writeText(t).then(()=>{}, ()=>{
+    const ta = document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  });
+  if (t.indexOf('-')>0) alert('已复制: '+t);
+}
+function copyAll(){
+  const txt = document.getElementById('genKeys').innerText;
+  navigator.clipboard.writeText(txt).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  });
+}
+function closeGenOut(){ document.getElementById('genOut').classList.remove('show'); }
+
+async function licToggle(key, status){
+  try{
+    await api('/api/license/admin/toggle', {method:'POST', body:JSON.stringify({key, status})});
+    licRefresh();
+  }catch(e){ alert(e.message); }
+}
+async function licExtend(key){
+  const days = prompt('顺延多少天？(在现有到期时间上叠加)', '30');
+  if (!days) return;
+  const n = parseInt(days);
+  if (!n || n<=0){ alert('天数不合法'); return; }
+  try{
+    await api('/api/license/admin/extend', {method:'POST', body:JSON.stringify({key, days:n})});
+    licRefresh();
+  }catch(e){ alert(e.message); }
+}
+function licExport(unusedOnly){
+  const rows = LICS.filter(l=>!unusedOnly || l.status==='unused')
+    .map(l=>l.key+'  ['+l.plan_name+']  '+({unused:'未激活',active:'已激活',disabled:'已禁用',expired:'已过期'}[l.status]||l.status)
+         +(l.remark?('  '+l.remark):''));
+  if (!rows.length){ alert('没有可导出的卡密'); return; }
+  const blob = new Blob([rows.join('\n')], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (unusedOnly?'卡密-未激活-':'卡密-全部-')+new Date().toISOString().slice(0,10)+'.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---------- 启动 ----------
+licenseGate().then(ok => { if (ok) seedToken(); });
+</script>
+</body>
+</html>

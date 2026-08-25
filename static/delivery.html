@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>选片交付</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--border:#e2e5ea;--text:#22262e;--muted:#8a93a3;
+        --accent:#e8b339;--ok:#2ea97d;--err:#e05b5b;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:15px}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+
+  .btn{background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;
+       padding:12px 18px;font-size:15px;cursor:pointer;width:100%;font-weight:600}
+  .btn.gold{background:var(--accent);color:#1a1205;border:none}
+  .btn.gold:disabled{opacity:.45}
+  .btn.ghost{background:transparent;color:var(--muted);border:none;font-size:13px}
+  .btn.sm{width:auto;padding:8px 14px;font-size:13px}
+
+  .view{max-width:560px;margin:0 auto;padding:14px 14px 90px;display:none}
+  .view.show{display:block}
+
+  /* 顶部 */
+  .top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:8px 4px 12px}
+  .top .ttl{font-size:19px;font-weight:800}
+  .top .sub{color:var(--muted);font-size:12px;flex-basis:100%}
+  .top .price{margin-left:auto;font-size:13px;color:var(--accent);font-weight:700}
+
+  /* 照片网格 */
+  .grid{display:flex;flex-wrap:wrap;gap:6px}
+  .card{position:relative;flex:0 0 calc(33.333% - 4px);background:#111;border-radius:8px;
+        overflow:hidden;border:2px solid transparent}
+  .card img{display:block;width:100%;height:auto}
+  .card.sel{border-color:var(--accent)}
+  .card .chk{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;
+             background:rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.55);
+             display:flex;align-items:center;justify-content:center;color:transparent;font-size:13px}
+  .card.sel .chk{background:var(--accent);border-color:var(--accent);color:#1a1205}
+  .card .nt{position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;
+            font-size:11px;padding:2px 7px;border-radius:9px;display:none}
+  .card.hasNote .nt{display:block}
+
+  /* 底部栏 */
+  .dock{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--border);
+        padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;
+        max-width:560px;margin:0 auto}
+  .dock .sum{font-size:14px;line-height:1.4}
+  .dock .sum b{color:var(--accent);font-size:17px}
+  .dock .sum .n{color:var(--muted)}
+  .dock .btn{flex:1;max-width:190px}
+
+  /* 确认面板 */
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:14px}
+  .panel h2{font-size:17px;margin-bottom:14px}
+  .panel .row{display:flex;justify-content:space-between;font-size:15px;margin-bottom:8px}
+  .panel .row b{color:var(--accent)}
+  .panel input,.panel textarea{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;
+        font-size:15px;margin-bottom:10px;background:#fafbfc;font-family:inherit;resize:none}
+  .panel .btn{margin-top:6px}
+  .panel.center{text-align:center}
+
+  /* 状态页 */
+  .stat{font-size:14px;color:var(--muted);margin-bottom:16px}
+  .bill{background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;
+        font-size:14px;text-align:left;margin-bottom:14px;line-height:2}
+  .bill b{color:var(--accent)}
+  .payqr{max-width:220px;border-radius:10px;border:1px solid var(--border);
+         margin:6px auto 14px;display:block}
+  .ico{font-size:44px;margin-bottom:10px}
+  .download-progress{display:none;margin:0 0 14px;padding:10px;border-left:3px solid var(--accent);
+                     background:#fafbfc;color:var(--muted);font-size:13px;text-align:left;line-height:1.5}
+  .download-progress.err{border-left-color:var(--err);color:var(--err)}
+
+  /* 灯箱 */
+  #lb{position:fixed;inset:0;background:rgba(8,10,14,.96);z-index:50;display:none;
+      flex-direction:column;align-items:center;justify-content:center}
+  #lb.show{display:flex}
+  #lb img{max-width:96vw;max-height:76vh;object-fit:contain;border-radius:6px}
+  #lb .bar{position:absolute;top:0;left:0;right:0;padding:14px 16px;display:flex;align-items:center;
+           gap:10px;color:#fff;background:linear-gradient(rgba(0,0,0,.65),transparent);font-size:14px}
+  #lb .nav{position:absolute;top:50%;transform:translateY(-50%);font-size:32px;color:#fff;
+           background:rgba(255,255,255,.08);border:none;border-radius:50%;width:48px;height:48px;cursor:pointer}
+  #lb .nav.prev{left:8px}#lb .nav.next{right:8px}
+  .lbbar{position:absolute;bottom:0;left:0;right:0;display:flex;gap:10px;padding:14px 16px
+         calc(14px + env(safe-area-inset-bottom));justify-content:center}
+  .lbbar .b{flex:1;max-width:200px;padding:12px;border-radius:10px;border:none;
+            font-size:15px;font-weight:700;cursor:pointer}
+  .lbbar .on{background:var(--accent);color:#1a1205}
+  .lbbar .off{background:rgba(255,255,255,.15);color:#fff}
+
+  /* 备注弹窗 */
+  #nm{position:fixed;inset:0;background:rgba(8,10,14,.6);z-index:60;display:none;align-items:flex-end}
+  #nm.show{display:flex}
+  #nm .nbox{background:#fff;border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:560px;margin:0 auto}
+  #nm h3{font-size:16px;margin-bottom:12px}
+  #nm textarea{width:100%;height:96px;padding:12px;border:1px solid var(--border);border-radius:10px;
+        font-size:15px;resize:none;font-family:inherit;background:#fafbfc}
+  #nm .nbtns{display:flex;gap:10px;margin-top:12px}
+  #nm .btn{flex:1}
+  #nm .btn.cancel{background:#f1f3f6;color:var(--muted);border:none}
+
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+           color:var(--muted);font-size:15px}
+</style>
+</head>
+<body>
+
+<div id="loading">加载中…</div>
+
+<!-- 选片 -->
+<div id="view-browse" class="view">
+  <div class="top">
+    <div class="ttl" id="bTitle">选片</div>
+    <div class="sub" id="bSub"></div>
+    <div class="price" id="bPrice"></div>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- 确认下单 -->
+<div id="view-confirm" class="view">
+  <div class="panel">
+    <h2>确认选片</h2>
+    <div class="row"><span>已选照片</span><b id="cCount">0</b></div>
+    <div class="row" id="cFreeRow" style="display:none"><span>免费张数</span><b id="cFree">0</b></div>
+    <div class="row" id="cPaidRow" style="display:none"><span>计费张数</span><b id="cPaid">0</b></div>
+    <div class="row"><span>单价</span><b id="cPrice">¥0</b></div>
+    <div class="row"><span>应付合计</span><b id="cTotal" style="font-size:20px">¥0</b></div>
+    <div style="height:12px"></div>
+    <input id="cName" placeholder="您的称呼（选填）" maxlength="20">
+    <input id="cPaid" type="number" placeholder="实付金额（元）">
+    <textarea id="cMsg" rows="2" maxlength="200" placeholder="想对摄影师说的话（选填）"></textarea>
+    <button class="btn gold" onclick="doCheckout()">提交订单</button>
+    <button class="btn ghost" onclick="goBrowse()">← 返回继续选片</button>
+  </div>
+</div>
+
+<!-- 订单状态 -->
+<div id="view-status" class="view">
+  <div class="panel center">
+    <div class="ico" id="stIco">⏳</div>
+    <h2 id="stTitle">订单已提交</h2>
+    <div class="stat" id="stDesc">等待摄影师确认后即可下载</div>
+    <div class="bill" id="stBill"></div>
+    <div class="download-progress" id="dlProgress"></div>
+    <img class="payqr" id="payqr" style="display:none" alt="收款码">
+    <button class="btn gold" id="dlBtn" style="display:none" onclick="download()">下载选中照片</button>
+    <button class="btn ghost" id="rfBtn" onclick="location.reload()">刷新状态</button>
+  </div>
+</div>
+
+<!-- 底部栏 -->
+<div class="dock">
+  <div class="sum"><span class="n" id="dSel">已选 0 张</span><br><b id="dTotal">合计 ¥0</b></div>
+  <button class="btn gold" onclick="dockAction()">提交选片</button>
+</div>
+
+<!-- 灯箱 -->
+<div id="lb">
+  <div class="bar">
+    <span id="lbTitle"></span>
+    <span style="flex:1"></span>
+    <button class="btn sm ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="closeLB()">关闭</button>
+  </div>
+  <button class="nav prev" onclick="lbNav(-1)">‹</button>
+  <img id="lbImg" alt="">
+  <button class="nav next" onclick="lbNav(1)">›</button>
+  <div class="lbbar">
+    <button class="b off" id="lbSel" onclick="lbToggle()">✓ 选 中</button>
+    <button class="b off" id="lbNote" onclick="editNote()">✎ 写备注</button>
+  </div>
+</div>
+
+<!-- 备注弹窗 -->
+<div id="nm">
+  <div class="nbox">
+    <h3 id="nmTitle">照片备注</h3>
+    <textarea id="nmTxt" placeholder="这张照片有什么要求？"></textarea>
+    <div class="nbtns">
+      <button class="btn cancel" onclick="closeNote()">取消</button>
+      <button class="btn gold" onclick="saveNote()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const S = { code:'', session:'', photos:[], sel:{}, price:0, title:'', order:null, lb:0,
+            freeCount:0, tierMin:0, tierDisc:0, saveTimer:null, exporting:false };
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function getCode(){
+  const m = location.pathname.match(/\/d\/([^/]+)\/?$/);
+  if (m) return decodeURIComponent(m[1]);
+  return new URLSearchParams(location.search).get('k') || '';
+}
+function getSession(){
+  const key = 'pcdl_sess_' + S.code;
+  let s = localStorage.getItem(key);
+  if (!s){
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    s = 'c' + Array.from(bytes, b=>b.toString(16).padStart(2,'0')).join('');
+    localStorage.setItem(key, s);
+  }
+  return s;
+}
+async function api(path, opts){
+  opts = opts || {};
+  if (opts.body && !opts.headers) opts.headers = {'Content-Type':'application/json'};
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+}
+function setView(name){
+  ['browse','confirm','status'].forEach(v=>{
+    document.getElementById('view-'+v).classList.toggle('show', v===name);
+  });
+  document.querySelector('.dock').style.display = (name==='browse') ? 'flex' : 'none';
+  document.getElementById('loading').style.display = 'none';
+}
+
+/* ---------- 初始化 ---------- */
+async function init(){
+  S.code = getCode(); S.session = getSession();
+  if (!S.code){ alert('链接缺少交付码'); return; }
+  try{
+    const j = await api('/api/delivery/project?k='+encodeURIComponent(S.code)+'&s='+encodeURIComponent(S.session));
+    S.price = j.project.price || 0;
+    S.freeCount = j.project.free_count || 0;
+    S.tierMin = j.project.tier_min || 0;
+    S.tierDisc = j.project.tier_discount || 0;
+    S.title = j.project.title;
+    S.photos = j.photos;
+    S.sel = j.selections || {};
+    S.order = j.order || null;
+    document.getElementById('bTitle').textContent = S.title || '选片';
+    document.getElementById('bSub').textContent = '共 '+j.project.photo_count+' 张精修照片' + (j.project.album?' · '+j.project.album:'');
+    document.getElementById('bPrice').textContent = S.price>0 ? '¥'+S.price+'/张' : '免费';
+    renderGrid();
+    if (S.order) showStatus(S.order); else setView('browse');
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+/* ---------- 网格 ---------- */
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  S.photos.forEach((ph, idx)=>{
+    const st = S.sel[ph.photo_id] || {selected:0, note:''};
+    const d = document.createElement('div');
+    d.className = 'card' + (st.selected?' sel':'') + (st.note?' hasNote':'');
+    d.innerHTML = '<span class="chk">✓</span><span class="nt">✎</span>'+
+                  '<img loading="lazy" src="'+ph.thumb_url+'" alt="">';
+    d.onclick = ()=>toggle(ph.photo_id);
+    d.ondblclick = ()=>openLB(idx);
+    grid.appendChild(d);
+  });
+  updateDock();
+}
+function toggle(phid){
+  const st = S.sel[phid] || {selected:0, note:''};
+  st.selected = st.selected ? 0 : 1;
+  S.sel[phid] = st;
+  saveSoon();
+  renderGrid();
+}
+function selCount(){ return Object.keys(S.sel).filter(k=>S.sel[k].selected).length; }
+function paidCount(){ return Math.max(0, selCount() - S.freeCount); }
+function selUnit(){
+  if (S.price>0 && S.tierMin && paidCount() >= S.tierMin && S.tierDisc>0)
+    return Math.max(0, S.price - S.tierDisc);
+  return S.price;
+}
+function selTotal(){ return (selUnit()*paidCount()).toFixed(2); }
+function updateDock(){
+  const n = selCount();
+  document.getElementById('dSel').textContent = '已选 '+n+' 张';
+  document.getElementById('dTotal').textContent = S.price>0 ? '合计 ¥'+selTotal() : '免费';
+}
+function saveSoon(){
+  clearTimeout(S.saveTimer);
+  S.saveTimer = setTimeout(async ()=>{
+    const items = [];
+    for (const k in S.sel){
+      const st = S.sel[k];
+      if (st.selected || st.note){
+        items.push({photo_id:k, selected:st.selected?1:0, note:st.note||''});
+      }
+    }
+    try{
+      await api('/api/delivery/select', {method:'POST',
+        body:JSON.stringify({k:S.code, session:S.session, items})});
+    }catch(e){ /* 静默: 状态由前端主导, 提交时后端校验 */ }
+  }, 400);
+}
+
+/* ---------- 灯箱 ---------- */
+function openLB(idx){ S.lb=idx; document.getElementById('lb').classList.add('show'); updateLB(); }
+function closeLB(){ document.getElementById('lb').classList.remove('show'); document.getElementById('lbImg').src=''; }
+function lbNav(d){ S.lb=(S.lb+d+S.photos.length)%S.photos.length; updateLB(); }
+function updateLB(){
+  const ph = S.photos[S.lb];
+  document.getElementById('lbImg').src = ph.full_url;
+  document.getElementById('lbTitle').textContent = (S.lb+1)+' / '+S.photos.length;
+  const st = S.sel[ph.photo_id] || {selected:0, note:''};
+  const b = document.getElementById('lbSel');
+  b.textContent = st.selected ? '✓ 已选中' : '选 中';
+  b.className = 'b ' + (st.selected?'on':'off');
+  document.getElementById('lbNote').textContent = st.note ? '✎ 备注('+st.note.length+'字)' : '✎ 写备注';
+}
+function lbToggle(){
+  const ph = S.photos[S.lb];
+  toggle(ph.photo_id);
+  updateLB();
+}
+
+/* ---------- 备注 ---------- */
+function editNote(){
+  const ph = S.photos[S.lb];
+  const st = S.sel[ph.photo_id] || {selected:0, note:''};
+  document.getElementById('nmTxt').value = st.note || '';
+  document.getElementById('nm').classList.add('show');
+  document.getElementById('nmTxt').focus();
+}
+function closeNote(){ document.getElementById('nm').classList.remove('show'); }
+function saveNote(){
+  const ph = S.photos[S.lb];
+  const st = S.sel[ph.photo_id] || {selected:0, note:''};
+  st.note = document.getElementById('nmTxt').value.trim();
+  S.sel[ph.photo_id] = st;
+  closeNote();
+  saveSoon();
+  renderGrid();
+  updateLB();
+}
+
+/* ---------- 下单 ---------- */
+function goConfirm(){
+  if (!selCount()){ alert('请先选择要下载的照片'); return; }
+  const n = selCount(), pc = paidCount(), unit = selUnit();
+  document.getElementById('cCount').textContent = n+' 张';
+  const freeRow = document.getElementById('cFreeRow'), paidRow = document.getElementById('cPaidRow');
+  if (S.freeCount>0){
+    freeRow.style.display = 'flex';
+    document.getElementById('cFree').textContent = Math.min(S.freeCount, n)+' 张';
+  } else freeRow.style.display = 'none';
+  if (S.price>0){
+    paidRow.style.display = 'flex';
+    document.getElementById('cPaid').textContent = pc+' 张';
+  } else paidRow.style.display = 'none';
+  document.getElementById('cPrice').textContent = S.price>0
+    ? (unit < S.price ? '¥'+S.price+' → ¥'+unit : '¥'+unit)+'/张'
+    : '免费';
+  const total = selTotal();
+  document.getElementById('cTotal').textContent = S.price>0 ? '¥'+total : '免费';
+  document.getElementById('cPaid').value = S.price>0 ? total : '';
+  setView('confirm');
+}
+function goBrowse(){ setView('browse'); }
+async function doCheckout(){
+  const paid = parseFloat(document.getElementById('cPaid').value);
+  const body = {
+    k:S.code, session:S.session,
+    paid_amount: isNaN(paid)?undefined:paid,
+    customer_name: document.getElementById('cName').value.trim(),
+    customer_msg: document.getElementById('cMsg').value.trim(),
+  };
+  const btn = event.target; btn.disabled = true;
+  try{
+    const j = await api('/api/delivery/checkout', {method:'POST', body:JSON.stringify(body)});
+    S.order = j.order;
+    showStatus(S.order);
+  }catch(e){
+    alert(e.message);
+    btn.disabled = false;
+  }
+}
+
+/* ---------- 订单状态 ---------- */
+function showStatus(o){
+  setView('status');
+  const bill = document.getElementById('stBill');
+  const lines = [
+    '已选 <b>'+o.count+'</b> 张',
+  ];
+  if ((o.free_count||0) > 0 && (o.free_count||0) < o.count)
+    lines.push('免费 '+o.free_count+' 张 · 计费 '+(o.count-o.free_count)+' 张');
+  if (S.price>0){
+    lines.push('单价 ¥'+o.price+'/张');
+    lines.push('应付 <b>¥'+o.total+'</b>');
+    if (o.paid_amount!=null) lines.push('您填写的实付 <b>¥'+o.paid_amount+'</b>');
+  }
+  bill.innerHTML = lines.join('<br>');
+  const dl = document.getElementById('dlBtn');
+  if (o.can_download){
+    document.getElementById('stIco').textContent = '✅';
+    document.getElementById('stTitle').textContent = '可以下载了';
+    document.getElementById('stDesc').textContent = '摄影师已同意，点击下方按钮下载选中照片';
+    dl.style.display = 'block';
+    document.getElementById('rfBtn').style.display = 'none';
+    document.getElementById('payqr').style.display = 'none';
+    return;
+  }
+  // 等待确认
+  document.getElementById('stIco').textContent = '⏳';
+  document.getElementById('stTitle').textContent = '订单已提交';
+  document.getElementById('stDesc').textContent = '等待摄影师确认后即可下载，请稍后刷新';
+  dl.style.display = 'none';
+  const pq = document.getElementById('payqr');
+  if (o.pay_qr_url && S.price>0){
+    pq.src = o.pay_qr_url; pq.style.display = 'block';
+  } else pq.style.display = 'none';
+  setTimeout(poll, 5000);
+}
+async function poll(){
+  if (!S.order) return;
+  try{
+    const j = await api('/api/delivery/status?k='+encodeURIComponent(S.code)+'&s='+encodeURIComponent(S.session)+'&order_id='+S.order.id);
+    if (j.can_download){ S.order = j; showStatus(j); }
+    else setTimeout(poll, 5000);
+  }catch(e){ setTimeout(poll, 8000); }
+}
+function setDownloadProgress(text, isError){
+  const el = document.getElementById('dlProgress');
+  el.textContent = text;
+  el.classList.toggle('err', !!isError);
+  el.style.display = text ? 'block' : 'none';
+}
+function downloadProgress(job){
+  const total = job.total || 0;
+  if (job.stage === 'zipping') return '正在打包：'+(job.zipped||0)+' / '+total+' 张';
+  return '正在去除水印：'+(job.processed||0)+' / '+total+' 张';
+}
+async function download(){
+  if (S.exporting || !S.order) return;
+  S.exporting = true;
+  const btn = document.getElementById('dlBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中…';
+  setDownloadProgress('正在创建下载任务…', false);
+  try{
+    let job = await api('/api/delivery/export', {method:'POST', body:JSON.stringify({
+      k:S.code, session:S.session, order_id:S.order.id
+    })});
+    const deadline = Date.now() + 20*60*1000;
+    while (job.status === 'queued' || job.status === 'running'){
+      if (Date.now() > deadline) throw new Error('处理超时，请重新下载');
+      setDownloadProgress(downloadProgress(job), false);
+      await new Promise(resolve=>setTimeout(resolve, 700));
+      job = await api('/api/delivery/export_status?k='+encodeURIComponent(S.code)+
+        '&s='+encodeURIComponent(S.session)+'&order_id='+S.order.id+'&id='+encodeURIComponent(job.id));
+    }
+    if (job.status !== 'ready'){
+      const failures = (job.failures||[]).map(f=>(f.photo_id?f.photo_id+'：':'')+(f.message||f.code)).join('；');
+      setDownloadProgress('处理失败：'+(failures||'未知错误'), true);
+      alert('处理失败\n'+(failures||'未知错误'));
+      return;
+    }
+    const url = '/api/delivery/download?k='+encodeURIComponent(S.code)+'&s='+encodeURIComponent(S.session)+
+      '&order_id='+S.order.id+'&job_id='+encodeURIComponent(job.id);
+    const a = document.createElement('a');
+    a.href = url; a.download = job.filename || '';
+    document.body.appendChild(a); a.click(); a.remove();
+    const failedN = (job.failures||[]).length;
+    if (failedN){
+      const names = (job.failures||[]).map(f=>f.photo_id).filter(Boolean).join('、');
+      setDownloadProgress('处理完成，下载已开始。'+failedN+' 张照片处理失败'+(names?'：'+names:''), true);
+    } else {
+      setDownloadProgress('处理完成，下载已开始。', false);
+    }
+  }catch(e){
+    setDownloadProgress('处理失败：'+e.message, true);
+  }finally{
+    S.exporting = false;
+    btn.disabled = false;
+    btn.textContent = '下载选中照片';
+  }
+}
+
+/* 底部栏按钮 */
+function dockAction(){
+  if (S.order && S.order.status==='submitted'){ alert('已有订单在等待摄影师确认'); return; }
+  goConfirm();
+}
+document.addEventListener('keydown', e=>{
+  if (e.key==='Escape'){ closeLB(); closeNote(); }
+  else if (document.getElementById('lb').classList.contains('show')){
+    if (e.key==='ArrowLeft') lbNav(-1);
+    else if (e.key==='ArrowRight') lbNav(1);
+  }
+});
+document.getElementById('lb').addEventListener('click', e=>{ if(e.target.id==='lb') closeLB(); });
+document.getElementById('nm').addEventListener('click', e=>{ if(e.target.id==='nm') closeNote(); });
+
+init();
+</script>
+</body>
+</html>

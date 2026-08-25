@@ -1,0 +1,23 @@
+# 数据 (含客户照片/缓存) — 严禁入库
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# 旧代码备份 (含历史 db)
+backups/
+
+# 核心机密资产 — 严禁入库 (Mac CI 从 GitHub Secret 注入)
+fxip/
+watermark_assets/
+watermark.py
+
+# 构建产物
+dist/
+build/
+*.pyc
+__pycache__/
+
+# 本地数据目录
+.pixcake-admin/
+.pixcake-photographer/

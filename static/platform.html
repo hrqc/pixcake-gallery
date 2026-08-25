@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素蛋糕 · 平台控制台</title>
+<style>
+  :root{
+    --bg0:#121316; --bg1:#1a1c21; --bg2:#22252b; --bg3:#2a2e35;
+    --line:#33373f; --line2:#42474f;
+    --txt:#d7dae0; --mut:#878e9c; --dim:#5a606b;
+    --amber:#ffa726; --amber2:#ffc46b; --amberD:#7a4a05;
+    --green:#2ee86e; --red:#ff5544; --cyan:#4cc9f0;
+    --mono:ui-monospace,Consolas,"Menlo",monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 3px),
+      radial-gradient(1200px 500px at 70% -10%, rgba(255,167,38,.06), transparent 60%),
+      var(--bg0);
+    color:var(--txt); font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    font-size:13px; line-height:1.5; min-height:100vh;
+  }
+  .wrap{max-width:1280px; margin:0 auto; padding:18px 20px 40px}
+
+  .console-bar{
+    display:flex; align-items:center; background:var(--bg2);
+    border:1px solid var(--line); border-left:4px solid var(--amber); margin-bottom:18px; overflow:hidden;
+  }
+  .console-bar .brand{padding:12px 18px; display:flex; align-items:center; gap:12px; background:linear-gradient(90deg, var(--bg3), transparent)}
+  .console-bar .logo{width:34px; height:34px; border:2px solid var(--amber); transform:rotate(45deg); display:flex; align-items:center; justify-content:center}
+  .console-bar .logo span{transform:rotate(-45deg); color:var(--amber); font-size:18px; font-weight:700}
+  .console-bar h1{font-size:16px; letter-spacing:1px; font-weight:700}
+  .console-bar h1 small{display:block; color:var(--mut); font-size:10.5px; letter-spacing:3px; font-weight:400}
+  .console-bar .conn{margin-left:auto; padding:10px 16px; text-align:right; border-left:1px solid var(--line); font-family:var(--mono); font-size:11px; color:var(--mut)}
+  .console-bar .conn b{color:var(--amber2); font-size:12px}
+
+  .tabs{display:flex; gap:6px; margin-bottom:16px}
+  .tab{padding:9px 22px; background:var(--bg2); border:1px solid var(--line); cursor:pointer; font-weight:700; letter-spacing:1px; color:var(--mut); font-size:13px}
+  .tab.on{color:#1a1205; background:var(--amber); border-color:var(--amber)}
+  .tab .n{font-family:var(--mono); font-size:11px; opacity:.8; margin-left:6px}
+
+  .panel{background:var(--bg1); border:1px solid var(--line); margin-bottom:16px; position:relative; clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px))}
+  .panel::before,.panel::after{content:""; position:absolute; width:7px; height:7px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #4a4f58, #24272c); box-shadow:inset 0 -1px 2px rgba(0,0,0,.7)}
+  .panel::before{top:6px; left:6px} .panel::after{bottom:6px; right:6px}
+  .panel-head{display:flex; align-items:center; gap:10px; padding:9px 16px; background:var(--bg2); border-bottom:1px solid var(--line)}
+  .panel-head .tag{font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--amber); border:1px solid var(--amberD); padding:2px 7px; background:rgba(255,167,38,.07)}
+  .panel-head h2{font-size:13px; font-weight:700; letter-spacing:1px}
+  .panel-head .right{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--mut)}
+  .panel-body{padding:14px 16px}
+  .panel-body.collapse{padding:0}
+
+  .led{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px}
+  .led.green{background:var(--green); box-shadow:0 0 8px var(--green)}
+  .led.amber{background:var(--amber); box-shadow:0 0 8px var(--amber)}
+  .led.red{background:var(--red); box-shadow:0 0 8px var(--red)}
+  .led.gray{background:var(--dim)}
+
+  .btn{background:linear-gradient(180deg,#ffb545,#f59b12); color:#1a1205; border:none; padding:9px 20px; font-weight:700; cursor:pointer; letter-spacing:1px; clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); font-size:13px}
+  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.45; cursor:not-allowed}
+  .btn.ghost{background:var(--bg3); color:var(--txt); border:1px solid var(--line2)}
+  .btn.ghost:hover{background:#30353e}
+  .btn.red{background:linear-gradient(180deg,#ff6a5a,#f03524); color:#fff}
+  .btn.sm{padding:4px 10px; font-size:11.5px}
+  .btn.sm.okb{background:transparent; color:var(--green); border:1px solid rgba(46,232,110,.4)}
+  .btn.sm.bad{background:transparent; color:var(--red); border:1px solid rgba(255,85,68,.5)}
+
+  .formlabel{display:block; font-size:11px; color:var(--mut); letter-spacing:1px; margin:10px 0 4px}
+  .formgrid{display:grid; grid-template-columns:repeat(6,1fr); gap:10px}
+  @media (max-width:900px){.formgrid{grid-template-columns:1fr 1fr}}
+  input,select{background:var(--bg2); border:1px solid var(--line2); color:var(--txt); padding:8px 10px; outline:none; font-size:13px; width:100%}
+  input:focus,select:focus{border-color:var(--amber)}
+  input.mono{font-family:var(--mono); letter-spacing:1px}
+
+  table{width:100%; border-collapse:collapse}
+  th,td{text-align:left; padding:7px 8px; font-size:12px; border-bottom:1px solid var(--line)}
+  th{color:var(--mut); font-weight:600; letter-spacing:1px; font-size:11px; background:var(--bg2); white-space:nowrap}
+  td .sub{color:var(--dim); font-size:10.5px; font-family:var(--mono)}
+  .num{font-family:var(--mono)}
+  .badge{display:inline-block; padding:1px 7px; font-size:10.5px; font-family:var(--mono); letter-spacing:1px}
+  .badge.active{color:var(--green); border:1px solid rgba(46,232,110,.4)}
+  .badge.disabled,.badge.expired{color:var(--red); border:1px solid rgba(255,85,68,.5)}
+  .badge.unused{color:var(--dim); border:1px solid var(--line2)}
+  .badge.quota{color:var(--amber2); border:1px solid var(--amberD)}
+  .err{color:var(--red); font-size:12px; min-height:16px; margin-top:6px}
+  .okmsg{color:var(--green); font-size:12px; margin-top:6px}
+  .hint{color:var(--mut); font-size:12px}
+  .hide{display:none!important}
+  .connrow{display:flex; gap:8px; align-items:flex-end}
+  .connrow .fld{flex:1}
+  .scroll{max-height:460px; overflow:auto}
+  .footer{color:var(--dim); text-align:center; font-size:11px; font-family:var(--mono); margin-top:22px; letter-spacing:1px}
+  .actions{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
+  .actions input{width:56px; padding:3px 5px; font-size:11px; font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="console-bar">
+    <div class="brand">
+      <div class="logo"><span>▲</span></div>
+      <h1>PIXCAKE · 平台控制台<small>ADMIN PLATFORM CONSOLE</small></h1>
+    </div>
+    <div class="conn" id="connState">未连接</div>
+  </div>
+
+  <!-- 连接配置 -->
+  <div class="panel" id="connPanel">
+    <div class="panel-head"><span class="tag">LINK</span><h2>连接中央服务器</h2></div>
+    <div class="panel-body">
+      <div class="connrow">
+        <div class="fld"><label class="formlabel" style="margin-top:0">服务器地址</label>
+          <input id="srv" value="https://hrqc105.icu" placeholder="https://hrqc105.icu"></div>
+        <div class="fld"><label class="formlabel" style="margin-top:0">管理令牌</label>
+          <input id="tok" type="password" placeholder="管理令牌"></div>
+        <button class="btn" id="connBtn" onclick="connect()">连 接</button>
+      </div>
+      <div class="err" id="connErr"></div>
+    </div>
+  </div>
+
+  <!-- 主体 -->
+  <div id="main" class="hide">
+    <div class="tabs">
+      <div class="tab on" data-t="pho" onclick="showTab('pho')">摄影师管理<span class="n" id="nPho">0</span></div>
+      <div class="tab" data-t="lic" onclick="showTab('lic')">卡密中心<span class="n" id="nLic">0</span></div>
+      <div class="tab" data-t="ord" onclick="showTab('ord')">订单总览<span class="n" id="nOrd">0</span></div>
+    </div>
+
+    <!-- 摄影师 -->
+    <div id="tab-pho">
+      <div class="panel">
+        <div class="panel-head"><span class="tag">PHOTOGRAPHER</span><h2>摄影师列表</h2>
+          <span class="right"><button class="btn ghost sm" onclick="loadPho()">刷新</button></span></div>
+        <div class="panel-body collapse">
+          <div class="scroll"><table>
+            <thead><tr><th>摄影师</th><th>机器码</th><th>状态</th><th>卡密/套餐</th><th>剩余</th><th>到期</th><th>相册/订单</th><th>操作</th></tr></thead>
+            <tbody id="phoBody"><tr><td colspan="8" style="color:var(--dim);text-align:center;padding:18px">加载中…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 卡密 -->
+    <div id="tab-lic" class="hide">
+      <div class="panel">
+        <div class="panel-head"><span class="tag">GENERATE</span><h2>生成卡密</h2></div>
+        <div class="panel-body">
+          <div class="formgrid">
+            <div><label class="formlabel" style="margin-top:0">套餐名</label><input id="gPlan" value="张数卡"></div>
+            <div><label class="formlabel" style="margin-top:0">时长(天)</label><input id="gDays" type="number" value="30" min="0"></div>
+            <div><label class="formlabel" style="margin-top:0">时长(时)</label><input id="gHours" type="number" value="0" min="0"></div>
+            <div><label class="formlabel" style="margin-top:0">张数(0=不限)</label><input id="gQuota" type="number" value="0" min="0"></div>
+            <div><label class="formlabel" style="margin-top:0">数量</label><input id="gCount" type="number" value="1" min="1" max="100"></div>
+            <div><label class="formlabel" style="margin-top:0">备注</label><input id="gRemark" placeholder="可选"></div>
+          </div>
+          <div style="margin-top:10px; display:flex; gap:8px; align-items:center">
+            <label class="hint" style="display:flex; align-items:center; gap:4px"><input type="checkbox" id="gBind" style="width:auto" checked> 绑设备</label>
+            <button class="btn sm" onclick="genCard()">生 成</button>
+          </div>
+          <div class="okmsg" id="gKeys"></div>
+          <div class="err" id="gErr"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="tag">LICENSE</span><h2>卡密列表</h2>
+          <span class="right">
+            <select id="licFilter" style="width:auto; padding:3px 8px; font-size:11px" onchange="loadLic()">
+              <option value="">全部</option><option value="unused">未激活</option>
+              <option value="active">有效</option><option value="disabled">已禁用</option>
+              <option value="expired">已过期</option>
+            </select>
+            <button class="btn ghost sm" onclick="loadLic()">刷新</button>
+          </span></div>
+        <div class="panel-body collapse">
+          <div class="scroll"><table>
+            <thead><tr><th>卡密</th><th>套餐</th><th>状态</th><th>时长</th><th>张数</th><th>绑定</th><th>归属</th><th>操作</th></tr></thead>
+            <tbody id="licBody"><tr><td colspan="8" style="color:var(--dim);text-align:center;padding:18px">加载中…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 订单 -->
+    <div id="tab-ord" class="hide">
+      <div class="panel">
+        <div class="panel-head"><span class="tag">ORDER</span><h2>全平台订单</h2>
+          <span class="right"><button class="btn ghost sm" onclick="loadOrd()">刷新</button></span></div>
+        <div class="panel-body collapse">
+          <div class="scroll"><table>
+            <thead><tr><th>时间</th><th>摄影师</th><th>项目</th><th>交付码</th><th>客户</th><th>张数</th><th>金额</th><th>状态</th></tr></thead>
+            <tbody id="ordBody"><tr><td colspan="8" style="color:var(--dim);text-align:center;padding:18px">加载中…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">PIXCAKE-PLATFORM-CONSOLE · 平台管理仅在本机进行 · 令牌仅存本地</div>
+</div>
+
+<script>
+'use strict';
+let connected = false;
+const $ = id => document.getElementById(id);
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtTime(ts){ if(!ts) return '—'; const d=new Date(ts*1000), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+function fmtDate(ts){ if(!ts) return '永久'; const d=new Date(ts*1000), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+
+async function api(url, opts){
+  const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  return r.json().then(j=>({ok:r.ok, status:r.status, j}));
+}
+
+async function proxyGet(path){
+  return api('/api/platform/proxy?path='+encodeURIComponent(path));
+}
+async function proxyPost(path, body){
+  return api('/api/platform/proxy', {method:'POST', body:JSON.stringify({path, body: body||{}})});
+}
+
+/* ---- 连接 ---- */
+async function init(){
+  const r = await api('/api/platform/status');
+  if(r.j.configured){
+    connected = true;
+    $('connState').innerHTML = '已连接 <b>'+esc(r.j.server)+'</b>';
+    $('connPanel').classList.add('hide');
+    $('main').classList.remove('hide');
+    $('srv').value = r.j.server;
+    loadPho(); loadLic(); loadOrd();
+  }
+}
+async function connect(){
+  $('connErr').textContent='';
+  const btn=$('connBtn'); btn.disabled=true; btn.textContent='连接中…';
+  const r = await api('/api/platform/config', {method:'POST', body:JSON.stringify({server:$('srv').value.trim(), token:$('tok').value.trim()})});
+  if(!r.ok){ $('connErr').textContent=r.j.error||'连接失败'; btn.disabled=false; btn.textContent='连 接'; return; }
+  connected = true;
+  $('connState').innerHTML = '已连接 <b>'+esc(r.j.server)+'</b>';
+  $('connPanel').classList.add('hide');
+  $('main').classList.remove('hide');
+  btn.disabled=false; btn.textContent='连 接';
+  loadPho(); loadLic(); loadOrd();
+}
+
+/* ---- 页签 ---- */
+function showTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.t===t));
+  document.getElementById('tab-pho').classList.toggle('hide', t!=='pho');
+  document.getElementById('tab-lic').classList.toggle('hide', t!=='lic');
+  document.getElementById('tab-ord').classList.toggle('hide', t!=='ord');
+}
+
+/* ---- 摄影师 ---- */
+async function loadPho(){
+  const r = await proxyGet('/api/admin/photographers');
+  if(!r.ok){ $('phoBody').innerHTML='<tr><td colspan="8" style="color:var(--red);text-align:center">'+(r.j.error||'失败')+'</td></tr>'; return; }
+  const list = r.j.photographers||[];
+  $('nPho').textContent = list.length;
+  let h='';
+  for(const p of list){
+    const c = p.card;
+    const quotaTxt = !c ? '—' : (c.unlimited_quota ? '不限' : (c.quota - c.quota_used)+'/'+c.quota);
+    const expTxt = !c ? '—' : (c.unlimited_time ? '永久' : fmtDate(c.expires_at));
+    const stCls = p.status==='active' ? 'active' : 'disabled';
+    h += '<tr>'+
+      '<td><div>'+esc(p.name)+'</div><div class="sub">'+esc(p.id)+'</div></td>'+
+      '<td><span class="sub">'+esc((p.machine_fp||'').slice(0,12))+'…</span></td>'+
+      '<td><span class="badge '+stCls+'">'+(p.status==='active'?'正常':'停用')+'</span></td>'+
+      '<td><div class="num">'+(c?esc(c.plan_name):'—')+'</div><div class="sub">'+(c?esc(c.key):'—')+'</div></td>'+
+      '<td class="num">'+quotaTxt+'</td>'+
+      '<td class="num">'+expTxt+'</td>'+
+      '<td class="num">'+p.projects+' / '+p.orders+'</td>'+
+      '<td><div class="actions">'+
+        '<button class="btn sm '+(p.status==='active'?'bad':'okb')+'" onclick="togglePho(\''+p.id+'\',\''+(p.status==='active'?'disabled':'active')+'\')">'+(p.status==='active'?'停用':'启用')+'</button>'+
+        '<button class="btn sm ghost" onclick="editPho(\''+p.id+'\',\''+esc(p.contact)+'\',\''+esc(p.admin_contact)+'\')">编辑</button>'+
+        (p.card && p.card.key ? '<button class="btn sm ghost" onclick="addQuotaCard(\''+p.card.key+'\')">加张</button>' : '')+
+      '</div></td></tr>';
+  }
+  $('phoBody').innerHTML = h || '<tr><td colspan="8" style="color:var(--dim);text-align:center">暂无摄影师</td></tr>';
+}
+async function togglePho(id, status){
+  const r = await proxyPost('/api/admin/photographers/toggle', {id, status});
+  if(!r.ok) alert(r.j.error||'操作失败'); else loadPho();
+}
+function editPho(id, contact, adminContact){
+  const name = prompt('摄影师显示名:');
+  if(name===null) return;
+  const c = prompt('摄影师联系方式:', contact);
+  const a = prompt('管理员联系方式(到期提示用):', adminContact);
+  proxyPost('/api/admin/photographers/update', {id, name, contact:c, admin_contact:a}).then(r=>{
+    if(!r.ok) alert(r.j.error||'失败'); loadPho();
+  });
+}
+function addQuotaCard(key){
+  const n = prompt('给卡密 '+key+' 加多少张 (负数=减):', '100');
+  if(n===null) return;
+  proxyPost('/api/license/admin/quota', {key, delta:parseInt(n)||0}).then(r=>{
+    if(!r.ok) alert(r.j.error||'失败'); else { loadPho(); loadLic(); }
+  });
+}
+
+/* ---- 卡密 ---- */
+async function genCard(){
+  $('gErr').textContent=''; $('gKeys').textContent='';
+  const r = await proxyPost('/api/license/admin/generate', {
+    plan_name: $('gPlan').value, duration_days: parseInt($('gDays').value)||0,
+    duration_hours: parseInt($('gHours').value)||0, quota: parseInt($('gQuota').value)||0,
+    count: parseInt($('gCount').value)||1, bind_device: $('gBind').checked,
+    remark: $('gRemark').value,
+  });
+  if(!r.ok){ $('gErr').textContent=r.j.error||'生成失败'; return; }
+  const keys = r.j.keys||[];
+  $('gKeys').textContent = keys.join('\n');
+  loadLic();
+}
+async function loadLic(){
+  const r = await proxyGet('/api/license/admin/list');
+  if(!r.ok){ $('licBody').innerHTML='<tr><td colspan="8" style="color:var(--red);text-align:center">'+(r.j.error||'失败')+'</td></tr>'; return; }
+  const list = (r.j.licenses||[]).filter(x => !$('licFilter').value || x.status===$('licFilter').value);
+  $('nLic').textContent = list.length;
+  let h='';
+  for(const l of list){
+    const duration = l.expires_at ? fmtDate(l.expires_at) : '永久';
+    const quota = l.quota ? (l.quota_used+'/'+l.quota) : '不限';
+    h += '<tr>'+
+      '<td class="num">'+esc(l.key)+'</td>'+
+      '<td>'+esc(l.plan_name||'—')+'</td>'+
+      '<td><span class="badge '+l.status+'">'+({active:'有效',disabled:'禁用',expired:'过期',unused:'未用'}[l.status]||l.status)+'</span></td>'+
+      '<td class="num">'+duration+'</td>'+
+      '<td class="num">'+quota+'</td>'+
+      '<td class="num">'+(l.bound_fp?'已绑':'—')+'</td>'+
+      '<td>'+(l.tenant?'<span class="sub">'+esc(l.tenant)+'</span>':'<span class="sub">未归属</span>')+'</td>'+
+      '<td><div class="actions">'+
+        (l.status==='active'?'<button class="btn sm bad" onclick="toggleLic(\''+l.key+'\',\'disabled\')">禁用</button>'
+                           :'<button class="btn sm okb" onclick="toggleLic(\''+l.key+'\',\'active\')">启用</button>')+
+        '<input type="number" id="days-'+l.key+'" placeholder="天" min="1">'+
+        '<button class="btn sm ghost" onclick="extendLic(\''+l.key+'\')">延期</button>'+
+        '<input type="number" id="qadd-'+l.key+'" placeholder="+张" min="1">'+
+        '<button class="btn sm ghost" onclick="addQuota(\''+l.key+'\')">加张</button>'+
+      '</div></td></tr>';
+  }
+  $('licBody').innerHTML = h || '<tr><td colspan="8" style="color:var(--dim);text-align:center">暂无卡密</td></tr>';
+}
+async function toggleLic(key, status){
+  const r = await proxyPost('/api/license/admin/toggle', {key, status});
+  if(!r.ok) alert(r.j.error||'失败'); else loadLic();
+}
+async function extendLic(key){
+  const days = parseInt($('days-'+key).value)||0;
+  if(!days) { alert('请输入延期天数'); return; }
+  const r = await proxyPost('/api/license/admin/extend', {key, days});
+  if(!r.ok) alert(r.j.error||'失败'); else loadLic();
+}
+async function addQuota(key){
+  const n = parseInt($('qadd-'+key).value)||0;
+  if(!n) { alert('请输入加张数'); return; }
+  const r = await proxyPost('/api/license/admin/quota', {key, delta:n});
+  if(!r.ok) alert(r.j.error||'失败'); else loadLic();
+}
+
+/* ---- 订单 ---- */
+async function loadOrd(){
+  const r = await proxyGet('/api/admin/orders');
+  if(!r.ok){ $('ordBody').innerHTML='<tr><td colspan="8" style="color:var(--red);text-align:center">'+(r.j.error||'失败')+'</td></tr>'; return; }
+  const list = r.j.orders||[];
+  $('nOrd').textContent = list.length;
+  let h='';
+  for(const o of list){
+    h += '<tr>'+
+      '<td class="num">'+fmtTime(o.created_at)+'</td>'+
+      '<td>'+(o.owner?esc(o.owner):'<span class="sub">管理端</span>')+'</td>'+
+      '<td><div>'+esc(o.project_name||o.project_id)+'</div><div class="sub">'+esc(o.project_id)+'</div></td>'+
+      '<td class="num">'+esc(o.code||'—')+'</td>'+
+      '<td>'+esc(o.customer_name||'—')+'</td>'+
+      '<td class="num">'+o.count+'</td>'+
+      '<td class="num">¥'+(o.total||0).toFixed(0)+'</td>'+
+      '<td><span class="badge '+o.status+'">'+({submitted:'待确认',confirmed:'已同意',downloaded:'已下载'}[o.status]||o.status)+'</span></td></tr>';
+  }
+  $('ordBody').innerHTML = h || '<tr><td colspan="8" style="color:var(--dim);text-align:center">暂无订单</td></tr>';
+}
+
+$('tok').addEventListener('keydown', e=>{ if(e.key==='Enter') connect(); });
+init();
+</script>
+</body>
+</html>

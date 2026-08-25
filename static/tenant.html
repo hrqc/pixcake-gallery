@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>摄影师站点 · 选片系统</title>
+<style>
+  :root{
+    --bg:#14161a; --card:#1c1f26; --line:#2b2f38; --ink:#e6e9ee; --dim:#8b93a1;
+    --amber:#ffb648; --amber2:#ffd27e; --red:#ff5c5c; --green:#3fd68b; --blue:#58a6ff;
+    --mono:ui-monospace,Consolas,'Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,'Microsoft YaHei',Segoe UI,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+  a{color:var(--blue);text-decoration:none}
+  /* 顶栏 */
+  header{display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--card);
+    border:1px solid var(--line);border-left:4px solid var(--amber);margin-bottom:18px}
+  header h1{font-size:17px;font-weight:700;letter-spacing:1px}
+  header .sub{color:var(--dim);font-family:var(--mono);font-size:12px}
+  .spacer{flex:1}
+  .btn{padding:7px 16px;border:1px solid var(--line);background:#262b34;color:var(--ink);
+    cursor:pointer;font-size:13px;border-radius:6px}
+  .btn:hover{border-color:var(--amber);color:var(--amber)}
+  .btn.amber{background:var(--amber);color:#1a1205;border-color:var(--amber);font-weight:700}
+  .btn.red{border-color:var(--red);color:var(--red)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  /* 状态卡 */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);padding:14px 16px}
+  .stat .k{color:var(--dim);font-size:12px}
+  .stat .v{font-size:24px;font-weight:700;font-family:var(--mono);margin-top:4px}
+  /* 卡密条 */
+  .cardbar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;background:var(--card);
+    border:1px solid var(--line);padding:12px 16px;margin-bottom:18px}
+  .cardbar .chip{padding:3px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;color:var(--dim)}
+  .cardbar .chip.warn{border-color:var(--red);color:var(--red)}
+  .cardbar .chip.ok{border-color:var(--green);color:var(--green)}
+  .cardbar .big{font-family:var(--mono);font-size:15px;font-weight:700}
+  /* 相册 */
+  .section{display:flex;align-items:center;margin:22px 0 12px}
+  .section h2{font-size:15px;font-weight:700}
+  .section .muted{color:var(--dim);font-size:12px;margin-left:10px}
+  .albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .album{background:var(--card);border:1px solid var(--line);padding:16px;position:relative}
+  .album .name{font-size:15px;font-weight:700;word-break:break-all}
+  .album .meta{color:var(--dim);font-size:12px;font-family:var(--mono);margin:6px 0 10px}
+  .album .code{font-family:var(--mono);font-size:12px;color:var(--amber);background:#262b34;
+    border:1px solid var(--line);padding:5px 8px;display:inline-block;margin-bottom:10px}
+  .album .row{display:flex;gap:8px;flex-wrap:wrap}
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line)}
+  th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+  th{color:var(--dim);font-weight:600;font-size:12px}
+  td.num,th.num{font-family:var(--mono)}
+  .tag{padding:2px 8px;border-radius:3px;font-size:12px}
+  .tag.submitted{background:#ffb64822;color:var(--amber);border:1px solid #ffb64855}
+  .tag.confirmed{background:#3fd68b22;color:var(--green);border:1px solid #3fd68b55}
+  .tag.downloaded{background:#58a6ff22;color:var(--blue);border:1px solid #58a6ff55}
+  .tag.rejected{background:#ff5c5c22;color:var(--red);border:1px solid #ff5c5c55}
+  /* 弹窗 */
+  .mask{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.on{display:flex}
+  .modal{width:min(560px,94vw);max-height:86vh;overflow:auto;background:var(--card);
+    border:1px solid var(--line);border-top:3px solid var(--amber);padding:22px}
+  .modal h3{margin-bottom:16px;font-size:16px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;color:var(--dim);font-size:12px;margin-bottom:4px}
+  .fld input{width:100%;padding:8px 10px;background:#12141a;border:1px solid var(--line);
+    color:var(--ink);font-size:14px;border-radius:5px}
+  .modal .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+  /* 登录 */
+  #login{position:fixed;inset:0;background:#0c0d10;z-index:100;display:flex;align-items:center;justify-content:center}
+  .loginbox{width:min(420px,92vw)}
+  .loginbox .logo{font-size:20px;font-weight:800;letter-spacing:3px;color:var(--amber);margin-bottom:6px}
+  .loginbox .tip{color:var(--dim);font-size:13px;margin-bottom:20px}
+  #key{width:100%;padding:12px 14px;background:#12141a;border:1px solid var(--line);color:var(--ink);
+    font-family:var(--mono);font-size:17px;letter-spacing:2px;text-transform:uppercase;border-radius:6px;margin-bottom:14px}
+  #err{color:var(--red);font-size:13px;min-height:20px;margin-bottom:8px}
+  .muted{color:var(--dim)}
+  .warnbar{border:1px solid var(--red);background:#ff5c5c14;color:var(--red);padding:10px 14px;margin-bottom:18px}
+  .okbar{border:1px solid var(--green);background:#3fd68b14;color:var(--green);padding:10px 14px;margin-bottom:18px}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="loginbox">
+    <div class="logo">PIXCAKE · 摄影师站点</div>
+    <div class="tip">请输入你的卡密登录自己的选片站点。卡密到期或张数用完时，请联系管理员购买。</div>
+    <input id="key" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" autocomplete="off">
+    <div id="err"></div>
+    <button class="btn amber" style="width:100%;padding:12px" onclick="login()">进入站点</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1 id="siteName">摄影师站点</h1>
+    <span class="sub" id="siteId"></span>
+    <span class="spacer"></span>
+    <span id="cardChip" class="chip"></span>
+    <button class="btn" onclick="logout()">退出</button>
+  </header>
+
+  <div id="alerts"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="cardbar" id="cardbar"></div>
+
+  <div class="section"><h2>我的相册</h2><span class="muted">客户用下方链接选片，下载时按卡密扣除张数</span></div>
+  <div class="albums" id="albums"><span class="muted">加载中…</span></div>
+
+  <div class="section"><h2>订单</h2><span class="muted" id="orderCount"></span></div>
+  <table id="orders"><thead><tr>
+    <th>订单号</th><th>相册</th><th>张数</th><th>实付</th><th>客户</th><th>状态</th><th>操作</th>
+  </tr></thead><tbody id="orderBody"></tbody></table>
+  <div id="noOrder" class="muted" style="margin-top:10px"></div>
+</div>
+
+<div class="mask" id="dlg">
+  <div class="modal">
+    <h3>交付设置 <span class="muted" id="dlgPid" style="font-size:12px"></span></h3>
+    <div class="fld"><label>客户分享标题</label><input id="fTitle" placeholder="如：520 精修相册"></div>
+    <div class="fld"><label>单价（元/张，0=免费）</label><input id="fPrice" type="number" min="0" step="0.01"></div>
+    <div class="fld"><label>免费张数（前 N 张不计费）</label><input id="fFree" type="number" min="0"></div>
+    <div class="fld"><label>阶梯门槛（计费张数 ≥ 此值时减价，0=无）</label><input id="fTier" type="number" min="0"></div>
+    <div class="fld"><label>阶梯减价（元/张）</label><input id="fTierD" type="number" min="0" step="0.01"></div>
+    <div class="fld"><label>客户链接</label><div id="fLink" class="muted" style="word-break:break-all"></div></div>
+    <div class="fld"><label>收款码（个人收款码图片，留空不换）</label>
+      <input type="file" id="fQr" accept="image/*"></div>
+    <div class="btns">
+      <button class="btn" onclick="closeDlg()">关闭</button>
+      <button class="btn" onclick="resetCode()">重置短码</button>
+      <button class="btn amber" onclick="saveDelivery()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ME = null, PROJECTS = [], dlgPid = null, _orderMap = {};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && j.tenant) { showLogin(); throw new Error('not-logged-in'); }
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+function showLogin() {
+  $('login').style.display = 'flex';
+  $('key').value = ''; $('key').focus();
+}
+async function login() {
+  const key = $('key').value.trim().toUpperCase();
+  if (!key) return;
+  try {
+    const j = await api('/api/tenant/login', { method: 'POST', body: { key } });
+    ME = j; await boot(); $('login').style.display = 'none';
+  } catch (e) { $('err').textContent = e.message; }
+}
+async function logout() {
+  await api('/api/tenant/logout', { method: 'POST', body: {} }).catch(() => {});
+  location.reload();
+}
+function fmtTime(ts) {
+  if (!ts) return '不限';
+  const d = new Date(ts * 1000);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+async function boot() {
+  ME = await api('/api/tenant/me');
+  $('siteName').textContent = (ME.tenant && ME.tenant.name) || '摄影师站点';
+  $('siteId').textContent = 'ID: ' + (ME.tenant && ME.tenant.id) || '';
+  renderCard(ME.card);
+  renderAlerts(ME.card);
+  renderStats(ME.stats);
+  $('albums').innerHTML = '<span class="muted">加载中…</span>';
+  const pj = await api('/api/tenant/projects');
+  PROJECTS = pj.projects || [];
+  renderAlbums();
+  await loadOrders();
+}
+
+function renderCard(card) {
+  const chip = $('cardChip');
+  if (!card) { chip.textContent = '无生效卡密'; chip.className = 'chip warn'; return; }
+  const d = card.left_days;
+  const quota = card.unlimited_quota ? '不限' : (card.remaining + '/' + card.quota);
+  let txt = card.plan_name + ' · 剩余';
+  if (!card.unlimited_time) txt += (d + '天');
+  if (!card.unlimited_quota) txt += ' · ' + quota + '张';
+  chip.textContent = txt;
+  chip.className = 'chip ' + ((d !== null && d <= 3) || (!card.unlimited_quota && card.remaining <= 0) ? 'warn' : 'ok');
+}
+
+function renderAlerts(card) {
+  const box = $('alerts');
+  if (!card) { box.innerHTML = '<div class="warnbar">暂无生效卡密，请先在客户端软件激活，或联系管理员购买。</div>'; return; }
+  let html = '';
+  const needBuy = (card.unlimited_time ? false : card.left_days <= 0) ||
+                  (!card.unlimited_quota && card.remaining <= 0);
+  if (needBuy && ME.tenant.admin_contact) {
+    html += '<div class="warnbar">⚠ 卡密到期/张数已用完，请联系管理员购买新卡密：<b>' + ME.tenant.admin_contact + '</b></div>';
+  }
+  box.innerHTML = html;
+}
+
+function renderStats(st) {
+  const items = [['相册', st.projects], ['照片', st.photos], ['订单', st.orders], ['待处理', st.pending]];
+  $('stats').innerHTML = items.map(([k, v]) =>
+    '<div class="stat"><div class="k">' + k + '</div><div class="v">' + (v ?? 0) + '</div></div>').join('');
+}
+
+function renderAlbums() {
+  const box = $('albums');
+  if (!PROJECTS.length) {
+    box.innerHTML = '<span class="muted">还没有相册。请使用客户端软件扫描并上传像素蛋糕工作区。</span>'; return;
+  }
+  box.innerHTML = PROJECTS.map(p => {
+    const link = '/d/' + (p.code || '');
+    const full = location.origin + link;
+    return '<div class="album">' +
+      '<div class="name">' + esc(p.name || p.album_id || p.id) + '</div>' +
+      '<div class="meta">' + (p.photo_count || 0) + ' 张 · ' + esc(p.id) + '</div>' +
+      '<div class="code">' + (p.code || '未开通') + '</div>' +
+      '<div class="row">' +
+      (p.code ? '<a class="btn" href="' + full + '" target="_blank">客户选片链接</a>' : '') +
+      '<button class="btn" onclick="openDelivery(\'' + esc(p.id) + '\')">交付设置</button>' +
+      '</div></div>';
+  }).join('');
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function openDelivery(pid) {
+  dlgPid = pid;
+  $('dlgPid').textContent = pid;
+  const j = await api('/api/tenant/delivery?p=' + encodeURIComponent(pid));
+  const c = j.config || {};
+  $('fTitle').value = c.title || '';
+  $('fPrice').value = c.price || 0;
+  $('fFree').value = c.free_count || 0;
+  $('fTier').value = c.tier_min || 0;
+  $('fTierD').value = c.tier_discount || 0;
+  $('fLink').textContent = (j.link || '') + '  (' + (c.enabled ? '已启用' : '已暂停') + ')';
+  $('fQr').value = '';
+  $('dlg').classList.add('on');
+}
+function closeDlg() { $('dlg').classList.remove('on'); }
+
+async function saveDelivery() {
+  const body = { p: dlgPid, title: $('fTitle').value,
+    price: Number($('fPrice').value || 0), free_count: Number($('fFree').value || 0),
+    tier_min: Number($('fTier').value || 0), tier_discount: Number($('fTierD').value || 0) };
+  const j = await api('/api/tenant/delivery', { method: 'POST', body });
+  const fq = $('fQr').files[0];
+  if (fq) {
+    const dataUrl = await readFileAsDataUrl(fq);
+    await api('/api/tenant/delivery/uploadqr', { method: 'POST', body: { p: dlgPid, data_url: dataUrl } });
+  }
+  closeDlg();
+  const pj = await api('/api/tenant/projects');
+  PROJECTS = pj.projects || [];
+  renderAlbums();
+  $('fLink').textContent = j.link || '';
+}
+async function resetCode() {
+  await api('/api/tenant/delivery/resetcode', { method: 'POST', body: { p: dlgPid } });
+  await openDelivery(dlgPid);
+}
+function readFileAsDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function loadOrders() {
+  const j = await api('/api/tenant/orders');
+  const rows = j.orders || [];
+  $('orderCount').textContent = rows.length ? '共 ' + rows.length + ' 单' : '';
+  $('noOrder').textContent = rows.length ? '' : '暂无订单';
+  const byPid = {}; PROJECTS.forEach(p => byPid[p.id] = p);
+  $('orderBody').innerHTML = rows.map(o => {
+    const proj = byPid[o.project_id] || {};
+    let ops = '';
+    if (o.status === 'submitted') {
+      ops = '<button class="btn" style="padding:4px 10px" onclick="confirmOrder(' + o.id + ',true)">同意</button> ' +
+            '<button class="btn red" style="padding:4px 10px" onclick="confirmOrder(' + o.id + ',false)">拒绝</button>';
+    } else if (o.status === 'confirmed') {
+      ops = '<span class="tag confirmed">客户可下载</span>';
+    }
+    return '<tr><td class="num">#' + o.id + '</td><td>' + esc(proj.name || proj.album_id || o.project_id) +
+      '</td><td class="num">' + (o.count || 0) + '</td><td class="num">¥' + (o.paid_amount || 0) +
+      '</td><td>' + esc(o.customer_name || '-') + '</td>' +
+      '<td><span class="tag ' + o.status + '">' + ({submitted:'待确认',confirmed:'已同意',downloaded:'已下载',rejected:'已拒绝'}[o.status] || o.status) + '</span></td>' +
+      '<td>' + ops + '</td></tr>';
+  }).join('');
+}
+async function confirmOrder(id, agree) {
+  await api('/api/tenant/delivery/confirm', { method: 'POST', body: { order_id: id, agree: !!agree, reject: !agree } });
+  loadOrders();
+}
+
+// 启动: 先探测是否已有登录会话
+(async function init() {
+  try {
+    ME = await api('/api/tenant/me');
+    await boot(); $('login').style.display = 'none';
+  } catch (e) {
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>

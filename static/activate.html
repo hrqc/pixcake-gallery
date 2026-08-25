@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>激活 · 像素蛋糕选片系统</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#191d26; --card2:#222734; --border:#2b3040;
+    --text:#e9ebf0; --muted:#9aa3b5; --accent:#e8b339; --accent2:#ffcf6e;
+    --ok:#3fb98a; --err:#e05b5b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{background:var(--bg); color:var(--text);
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; font-size:14px;
+       display:flex; align-items:center; justify-content:center; padding:20px}
+  .card{width:100%; max-width:420px; background:var(--card); border:1px solid var(--border);
+        border-radius:16px; padding:32px 30px; box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .logo{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  .logo .icon{font-size:26px}
+  .logo h1{font-size:19px; font-weight:700}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:24px}
+  .status{padding:12px 14px; border-radius:10px; margin-bottom:20px; font-size:13.5px; line-height:1.6}
+  .status.err{background:rgba(224,91,91,.12); border:1px solid rgba(224,91,91,.4); color:#ff9d9d}
+  .status.ok{background:rgba(63,185,138,.12); border:1px solid rgba(63,185,138,.4); color:#8ad9bc}
+  .status .row{display:flex; justify-content:space-between; gap:10px}
+  .status .row span{color:var(--muted)}
+  .input{width:100%; background:var(--card2); border:1px solid var(--border); color:var(--text);
+         border-radius:10px; padding:14px; font-size:20px; letter-spacing:2px; text-align:center;
+         font-family:ui-monospace,Consolas,monospace; text-transform:uppercase; outline:none}
+  .input:focus{border-color:var(--accent)}
+  .btn{display:block; width:100%; background:var(--accent); color:#1a1205; border:none;
+       border-radius:10px; padding:14px; font-size:16px; font-weight:700; cursor:pointer; margin-top:16px}
+  .btn:hover{background:var(--accent2)}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .btn.gray{background:var(--card2); color:var(--text); border:1px solid var(--border); margin-top:10px}
+  .errmsg{color:#ff9d9d; font-size:13px; margin-top:10px; min-height:18px; text-align:center}
+  .foot{margin-top:22px; color:var(--muted); font-size:12px; text-align:center; line-height:1.7}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <span class="icon">📷</span>
+    <h1>像素蛋糕 · 选片系统</h1>
+  </div>
+  <div class="sub">软件使用授权 · 请激活后使用</div>
+
+  <!-- 状态展示 -->
+  <div id="statusBox" class="status"></div>
+
+  <!-- 激活表单 -->
+  <input class="input" id="keyInput" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" autocomplete="off">
+  <div class="errmsg" id="errmsg"></div>
+  <button class="btn" id="actBtn" onclick="doActivate()">激 活</button>
+  <button class="btn gray" id="contBtn" onclick="goHome()" style="display:none">进入系统</button>
+
+  <div class="foot">
+    每张卡密可绑定一台电脑使用<br>
+    输入卡密即可自动完成激活
+  </div>
+</div>
+
+<script>
+'use strict';
+const M = {
+  none:     ['✋ 系统尚未激活', '请输入卡密激活后使用本系统'],
+  expired:  ['⏰ 授权已过期', '请购买新的卡密进行续期'],
+  blocked:  ['🚫 授权已被禁用', '请联系授权方处理'],
+  quota:    ['📉 授权额度已用完', '请购买新的卡密进行续期'],
+  device:   ['💻 授权绑定其他设备', '本卡密已绑定其他电脑'],
+  tampered: ['⚠️ 授权文件异常', '请重新输入卡密激活'],
+};
+let meta = null;
+
+async function loadMeta(){
+  try{
+    const r = await fetch('/api/license/meta');
+    meta = await r.json();
+  }catch(e){ meta = null; }
+  render();
+}
+function fmtTime(ts){
+  if (!ts) return '永久';
+  const d = new Date(ts*1000);
+  const p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function render(){
+  const box = document.getElementById('statusBox');
+  const cont = document.getElementById('contBtn');
+  const input = document.getElementById('keyInput');
+  const act = document.getElementById('actBtn');
+  const st = meta && meta.state;
+  if (st === 'ok' && meta.info){
+    const i = meta.info;
+    let left = '';
+    if (i.expires_at) left = fmtTime(i.expires_at);
+    else if (i.quota) left = (i.quota - i.quota_used) + ' 张';
+    box.className = 'status ok';
+    box.innerHTML =
+      '<div class="row"><span>卡密</span><b>'+i.key+'</b></div>'+
+      '<div class="row"><span>套餐</span><b>'+ (i.plan_name || '—') +'</b></div>'+
+      '<div class="row"><span>有效期至 / 剩余</span><b>'+left+'</b></div>';
+    input.style.display = 'none';
+    act.style.display = 'none';
+    cont.style.display = 'block';
+    document.getElementById('errmsg').textContent = '';
+    return;
+  }
+  input.style.display = 'block';
+  act.style.display = 'block';
+  cont.style.display = 'none';
+  box.className = 'status err';
+  const m = M[st] || M.none;
+  box.innerHTML = '<b>'+m[0]+'</b><br>'+m[1];
+}
+async function doActivate(){
+  const key = document.getElementById('keyInput').value.trim();
+  if (!/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/.test(key)){
+    document.getElementById('errmsg').textContent = '卡密格式不正确，请检查后重试';
+    return;
+  }
+  const btn = document.getElementById('actBtn');
+  btn.disabled = true;
+  btn.textContent = '激活中…';
+  document.getElementById('errmsg').textContent = '';
+  try{
+    const r = await fetch('/api/license/activate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({key})
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || '激活失败');
+    meta = { admin:false, state:'ok', info: j.payload };
+    render();
+    setTimeout(()=>{ location.href = '/'; }, 800);
+  }catch(e){
+    document.getElementById('errmsg').textContent = e.message;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '激 活';
+  }
+}
+function goHome(){ location.href = '/'; }
+
+// 输入自动大写
+document.getElementById('keyInput').addEventListener('input', function(){
+  this.value = this.value.toUpperCase();
+});
+loadMeta();
+</script>
+</body>
+</html>

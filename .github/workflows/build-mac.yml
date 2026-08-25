@@ -1,0 +1,47 @@
+name: Build Mac (管理端)
+
+on:
+  workflow_dispatch:       # 手动触发
+  push:
+    tags: ['v*']           # 打 tag 自动出包
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14    # Apple Silicon (arm64)
+            arch: arm64
+          - runner: macos-13    # Intel (x86_64)
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install pyinstaller opencv-python-headless numpy pillow openpyxl
+      - name: Inject core assets (fxip + watermark_assets + watermark.py)
+        run: |
+          echo "${{ secrets.CORE_ASSETS_B64 }}" | base64 --decode | tar xz
+          test -f fxip/fxip_decode.py && test -f watermark.py \
+            && test -f watermark_assets/pixcake_ai_v1/residual_template.npy \
+            && echo 'core assets OK'
+      - name: Build .app
+        run: |
+          pyinstaller -y --noconfirm --windowed --name pixcake-admin \
+            --add-data static:static --add-data watermark_assets:watermark_assets \
+            --hidden-import openpyxl launch_admin.py
+      - name: Create dmg
+        run: |
+          hdiutil create -volname "像素蛋糕管理端" -srcfolder dist/pixcake-admin.app \
+            -ov -format UDZO dist/pixcake-admin-mac-${{ matrix.arch }}.dmg
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixcake-admin-mac-${{ matrix.arch }}
+          path: |
+            dist/pixcake-admin-mac-${{ matrix.arch }}.dmg
+            dist/pixcake-admin.app
