@@ -26,8 +26,12 @@ jobs:
       - name: Inject core assets (fxip + watermark_assets + watermark.py)
         run: |
           echo "${{ secrets.CORE_ASSETS_B64 }}" | base64 --decode | tar xz
+          # 预览水印字体 (OFL 开源, 仓库内 fonts/, 16MB 超 GitHub secret 64KB 限制故走仓库)
+          mkdir -p watermark_assets/fonts
+          cp fonts/NotoSansCJKsc-Bold.otf watermark_assets/fonts/
           test -f fxip/fxip_decode.py && test -f watermark.py \
             && test -f watermark_assets/pixcake_ai_v1/residual_template.npy \
+            && test -f watermark_assets/fonts/NotoSansCJKsc-Bold.otf \
             && echo 'core assets OK'
       - name: Build .app
         run: |

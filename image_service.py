@@ -16,6 +16,7 @@ from PIL import Image
 
 from fxip import fxip_decode, jpeg_oracle
 from watermark import WatermarkError, algorithm_fingerprint, clean_jpeg
+from overlay import apply_overlay
 
 
 class ImageServiceError(RuntimeError):
@@ -160,6 +161,36 @@ class ImageService:
     def ensure(self, photo, size):
         paths = self.request(photo).result()
         return paths['thumb'] if int(size) == 375 else paths['master']
+
+    def watermarked(self, photo, size, text='贺染', enabled=True):
+        """返回预览图缓存路径.
+
+        未授权客户预览 → 在无水印 master/thumb 上叠加斜纹水印 (磁盘缓存 wm-<size>-<txthash>.jpg);
+        已授权 / 关闭水印 → 直接返回无水印原图路径.
+        水印文字进缓存文件名 hash, 摄影师改文字后自动换新缓存, 源指纹变化随目录重建.
+        渲染失败时静默回落无水印图 (水印缺失不阻断选片).
+        """
+        if not enabled or not (text or '').strip():
+            return self.ensure(photo, size)
+        photo = dict(photo)
+        fingerprint = self.fingerprint(photo)
+        paths = self._paths(photo, fingerprint)
+        digest = hashlib.sha256(text.strip().encode('utf-8')).hexdigest()[:8]
+        wm_path = os.path.join(paths['folder'], 'wm-%s-%s.jpg' % (int(size), digest))
+        if os.path.isfile(wm_path):
+            return wm_path
+        clean_path = self.ensure(photo, size)
+        with self._photo_lock(photo):
+            if os.path.isfile(wm_path):
+                return wm_path
+            with open(clean_path, 'rb') as f:
+                clean_jpeg = f.read()
+            wm_jpeg = apply_overlay(clean_jpeg, text=text)
+            if wm_jpeg is clean_jpeg or wm_jpeg == clean_jpeg:
+                return clean_path
+            os.makedirs(paths['folder'], exist_ok=True)
+            self._atomic_write(wm_path, wm_jpeg)
+            return wm_path
 
     @staticmethod
     def _decode_fxip(path, photo_id, role):

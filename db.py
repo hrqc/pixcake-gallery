@@ -166,7 +166,16 @@ def init_db():
                 conn.execute("ALTER TABLE projects ADD COLUMN owner TEXT")
         except Exception:
             pass
-        conn.execute('PRAGMA user_version=3')
+        # 摄影师水印: 预览图水印文字 + 开关 (NULL=用平台默认「贺染」, enabled 默认开)
+        try:
+            pg_cols = {row['name'] for row in conn.execute("PRAGMA table_info(photographers)")}
+            if 'watermark_text' not in pg_cols:
+                conn.execute("ALTER TABLE photographers ADD COLUMN watermark_text TEXT")
+            if 'watermark_enabled' not in pg_cols:
+                conn.execute("ALTER TABLE photographers ADD COLUMN watermark_enabled INTEGER DEFAULT 1")
+        except Exception:
+            pass
+        conn.execute('PRAGMA user_version=4')
         conn.commit()
     finally:
         conn.close()
@@ -649,6 +658,17 @@ def set_license_status(key, status):
         conn.close()
 
 
+def delete_license_key(key):
+    """硬删卡密. 返回是否删除成功."""
+    conn = _connect()
+    try:
+        cur = conn.execute("DELETE FROM license_keys WHERE key=?", (key,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def extend_license(key, days):
     """在现有到期时间上顺延 days 天 (永久卡/未激活卡返回 False)."""
     conn = _connect()
@@ -800,8 +820,9 @@ def list_photographers():
 
 
 def update_photographer(slug, **kw):
-    """更新摄影师字段 (name/contact/admin_contact/machine_fp 等)."""
-    allowed = ('name', 'contact', 'admin_contact', 'machine_fp', 'status')
+    """更新摄影师字段 (name/contact/admin_contact/machine_fp/watermark_* 等)."""
+    allowed = ('name', 'contact', 'admin_contact', 'machine_fp', 'status',
+               'watermark_text', 'watermark_enabled')
     fields = {k: v for k, v in kw.items() if k in allowed}
     if not fields or not slug:
         return None

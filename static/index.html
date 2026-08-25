@@ -893,7 +893,7 @@ async function licRefresh(){
         '<td>'+left+'</td>'+
         '<td>'+(l.quota? (l.quota_used+'/'+l.quota) : '—')+'</td>'+
         '<td>'+esc(l.remark||'')+'</td>'+
-        '<td><div class="op">'+ops+'<button class="btn" onclick="licExtend(\''+l.key+'\')">延期</button></div></td>'+
+        '<td><div class="op">'+ops+'<button class="btn" onclick="licExtend(\''+l.key+'\')">延期</button><button class="btn" style="background:var(--red);color:#fff" onclick="licDelete(\''+l.key+'\',\''+(l.plan_name||'').replace(/'/g,"\\'")+'\')">删除</button></div></td>'+
         '</tr>';
     }).join('') || '<tr><td colspan="9" style="color:var(--muted)">还没有卡密</td></tr>';
   }catch(e){ alert(e.message); }
@@ -951,6 +951,13 @@ async function licExtend(key){
   if (!n || n<=0){ alert('天数不合法'); return; }
   try{
     await api('/api/license/admin/extend', {method:'POST', body:JSON.stringify({key, days:n})});
+    licRefresh();
+  }catch(e){ alert(e.message); }
+}
+async function licDelete(key, plan){
+  if(!confirm('确定删除卡密 '+key+' 吗？\n删除后不可恢复，该卡将无法再激活/使用。'+(plan?'\n套餐: '+plan:'')) ) return;
+  try{
+    await api('/api/license/admin/delete', {method:'POST', body:JSON.stringify({key})});
     licRefresh();
   }catch(e){ alert(e.message); }
 }

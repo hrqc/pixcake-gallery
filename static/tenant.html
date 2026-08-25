@@ -100,6 +100,7 @@
     <span class="sub" id="siteId"></span>
     <span class="spacer"></span>
     <span id="cardChip" class="chip"></span>
+    <button class="btn" onclick="openWm()">水印设置</button>
     <button class="btn" onclick="logout()">退出</button>
   </header>
 
@@ -134,6 +135,24 @@
       <button class="btn" onclick="closeDlg()">关闭</button>
       <button class="btn" onclick="resetCode()">重置短码</button>
       <button class="btn amber" onclick="saveDelivery()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="wmDlg">
+  <div class="modal">
+    <h3>预览图水印 <span class="muted" style="font-size:12px">客户选片时预览图显示，购买下载无水印原图</span></h3>
+    <div class="fld">
+      <label><input id="wmEnabled" type="checkbox" style="width:auto;vertical-align:middle" checked> 启用预览图水印</label>
+    </div>
+    <div class="fld">
+      <label>水印文字（留空用平台默认「贺染」，最多 20 字）</label>
+      <input id="wmText" placeholder="贺染" maxlength="20">
+    </div>
+    <div class="warnbar" style="font-size:12px;line-height:1.7">⚠️ 若<b>不开启</b>水印，客户在选片页<b>右键 / 长按图片就能直接保存无水印精修图</b>，等于免费白拿，无法再卖钱。水印只出现在预览，客户购买后下载到的仍是无水印原图。</div>
+    <div class="btns">
+      <button class="btn" onclick="$('wmDlg').classList.remove('on')">关闭</button>
+      <button class="btn amber" onclick="saveWm()">保存</button>
     </div>
   </div>
 </div>
@@ -291,6 +310,24 @@ function readFileAsDataUrl(file) {
     r.onerror = rej;
     r.readAsDataURL(file);
   });
+}
+
+/* ---- 预览图水印设置 ---- */
+function openWm() {
+  const t = (ME.tenant && ME.tenant.watermark_text) || '贺染';
+  $('wmText').value = t === '贺染' ? '' : t;
+  $('wmEnabled').checked = !ME.tenant || ME.tenant.watermark_enabled !== false;
+  $('wmDlg').classList.add('on');
+}
+async function saveWm() {
+  try {
+    await api('/api/tenant/watermark', { method: 'POST', body: {
+      text: $('wmText').value.trim(),
+      enabled: $('wmEnabled').checked,
+    }});
+    ME = await api('/api/tenant/me');
+    $('wmDlg').classList.remove('on');
+  } catch (e) { alert(e.message); }
 }
 
 async function loadOrders() {

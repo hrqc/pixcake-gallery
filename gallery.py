@@ -737,6 +737,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._license_admin_quota_post()
             return
+        if path == '/api/license/admin/delete':
+            if not self._require_auth():
+                return
+            self._license_admin_delete()
+            return
         # ---- 管理端: 平台代理 ----
         if path == '/api/platform/config':
             self._platform_config_post()
@@ -753,6 +758,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/api/tenant/logout':
             self._tenant_logout_post()
+            return
+        if path == '/api/tenant/watermark':
+            self._tenant_watermark_post()
             return
         if path == '/api/tenant/select':
             self._tenant_select_post()
@@ -986,6 +994,18 @@ class Handler(BaseHTTPRequestHandler):
         db.set_license_status(key, status)
         self._json({'ok': True})
 
+    def _license_admin_delete(self):
+        """POST /api/license/admin/delete: 硬删卡密 (管理操作, 前端需确认)."""
+        body = self._read_json_body()
+        key = (body.get('key') or '').strip().upper()
+        if not key:
+            self._json({'error': '参数错误'}, 400)
+            return
+        if db.delete_license_key(key):
+            self._json({'ok': True})
+        else:
+            self._json({'error': '卡密不存在'}, 404)
+
     def _license_admin_extend(self):
         body = self._read_json_body()
         key = (body.get('key') or '').strip().upper()
@@ -1127,10 +1147,31 @@ class Handler(BaseHTTPRequestHandler):
                 'id': pg['id'], 'name': pg['name'], 'contact': pg['contact'],
                 'status': pg['status'], 'admin_contact': pg['admin_contact'] or '',
                 'site_url': self._tenant_site_url(pg['id']),
+                'watermark_text': pg.get('watermark_text') or '贺染',
+                'watermark_enabled': bool(pg.get('watermark_enabled', 1)),
             },
             'card': self._tenant_card_public(card),
             'stats': {'projects': len(projs), 'photos': photo_count, 'orders': order_count},
         })
+
+    def _tenant_watermark_post(self):
+        """POST /api/tenant/watermark: 设置摄影师预览图水印文字/开关.
+        水印叠加在客户预览图上 (防白嫖), 下载的无水印原图不受影响."""
+        slug = self._require_tenant()
+        if not slug:
+            return
+        body = self._read_json_body()
+        enabled = body.get('enabled', True) is not False
+        text = (body.get('text') or '').strip()
+        if len(text) > 20:
+            self._json({'error': '水印文字最多 20 个字'}, 400)
+            return
+        db.update_photographer(
+            slug,
+            watermark_text=text,
+            watermark_enabled=1 if enabled else 0,
+        )
+        self._json({'ok': True})
 
     def _tenant_projects_get(self):
         slug = self._require_tenant()
@@ -1602,7 +1643,23 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
-            cached = self.server.image_service.ensure(ph, size)
+            if self._authorized():
+                # 管理端/本地看图 (URL 带 t=): 无水印原图
+                cached = self.server.image_service.ensure(ph, size)
+            else:
+                # 客户预览 (delivery /img): 叠加摄影师水印 (默认「贺染」, 可自定义/关闭)
+                wm_text, wm_enabled = '贺染', True
+                try:
+                    project = db.get_project(ph['project_id']) or {}
+                    owner = project.get('owner')
+                    if owner:
+                        pg = db.get_photographer(owner)
+                        if pg:
+                            wm_text = (pg.get('watermark_text') or '贺染').strip() or '贺染'
+                            wm_enabled = bool(pg.get('watermark_enabled', 1))
+                except Exception:
+                    pass
+                cached = self.server.image_service.watermarked(ph, size, text=wm_text, enabled=wm_enabled)
         except ImageServiceError as exc:
             failure = exc.to_dict()
             if not self._authorized():

@@ -341,6 +341,7 @@ async function loadLic(){
         '<button class="btn sm ghost" onclick="extendLic(\''+l.key+'\')">延期</button>'+
         '<input type="number" id="qadd-'+l.key+'" placeholder="+张" min="1">'+
         '<button class="btn sm ghost" onclick="addQuota(\''+l.key+'\')">加张</button>'+
+        '<button class="btn sm bad" onclick="delLic(\''+l.key+'\',\''+(l.plan_name||'').replace(/'/g,"\\'")+'\')">删除</button>'+
       '</div></td></tr>';
   }
   $('licBody').innerHTML = h || '<tr><td colspan="8" style="color:var(--dim);text-align:center">暂无卡密</td></tr>';
@@ -359,6 +360,11 @@ async function addQuota(key){
   const n = parseInt($('qadd-'+key).value)||0;
   if(!n) { alert('请输入加张数'); return; }
   const r = await proxyPost('/api/license/admin/quota', {key, delta:n});
+  if(!r.ok) alert(r.j.error||'失败'); else loadLic();
+}
+async function delLic(key, plan){
+  if(!confirm('确定删除卡密 '+key+' 吗？\n删除后不可恢复，该卡将无法再激活/使用。'+(plan?'\n套餐: '+plan:'')) ) return;
+  const r = await proxyPost('/api/license/admin/delete', {key});
   if(!r.ok) alert(r.j.error||'失败'); else loadLic();
 }
 
