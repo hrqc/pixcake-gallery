@@ -2159,12 +2159,14 @@ def main():
     args = ap.parse_args()
 
     if args.data_dir:
-        global DATA_DIR, CLEAN_CACHE_DIR, QR_DIR, TOKEN_FILE, PLATFORM_FILE
+        global DATA_DIR, CLEAN_CACHE_DIR, QR_DIR, TOKEN_FILE, PLATFORM_FILE, SECRET_FILE
         DATA_DIR = os.path.abspath(args.data_dir)
         CLEAN_CACHE_DIR = os.path.join(DATA_DIR, 'clean-cache')
         QR_DIR = os.path.join(DATA_DIR, 'qr')
         TOKEN_FILE = os.path.join(DATA_DIR, 'token.txt')
         PLATFORM_FILE = os.path.join(DATA_DIR, 'platform.json')
+        SECRET_FILE = os.path.join(DATA_DIR, 'server_secret')
+        db.DB_FILE = os.path.join(DATA_DIR, 'gallery.db')
 
     os.makedirs(DATA_DIR, exist_ok=True)
     db.init_db()
