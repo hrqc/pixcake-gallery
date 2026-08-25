@@ -831,14 +831,18 @@ def bind_card_tenant(key, tenant):
 
 
 def tenant_active_card(tenant):
-    """摄影师当前生效的卡: status=active 且绑定该租户, 取最近激活的."""
+    """摄影师当前生效的卡: status=active 且未到期且绑定该租户, 取最近激活的.
+    排除已过期但 status 尚未标记的卡 (换新卡后旧卡不再遮蔽新卡);
+    同秒激活按 rowid 决胜 (后插入的新卡优先)."""
     if not tenant:
         return None
     conn = _connect()
     try:
+        now = int(time.time())
         row = conn.execute(
             "SELECT * FROM license_keys WHERE tenant=? AND status='active' "
-            "ORDER BY COALESCE(activated_at,0) DESC LIMIT 1", (tenant,)).fetchone()
+            "AND (expires_at = 0 OR expires_at > ?) "
+            "ORDER BY COALESCE(activated_at,0) DESC, rowid DESC LIMIT 1", (tenant, now)).fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
