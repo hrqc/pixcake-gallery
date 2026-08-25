@@ -1031,15 +1031,23 @@ class Handler(BaseHTTPRequestHandler):
             return None
         now = int(time.time())
         left_days = None
+        left_hours = None
+        expired = False
         if card['expires_at']:
-            left_days = max(0, int((card['expires_at'] - now) / 86400))
+            left = card['expires_at'] - now
+            left_days = max(0, left // 86400)
+            left_hours = max(0, left // 3600)
+            expired = left <= 0
         quota = card['quota'] or 0
         used = card['quota_used'] or 0
         return {
+            'key': card['key'],
             'plan_name': card['plan_name'] or '',
             'expires_at': card['expires_at'] or 0,
             'left_days': left_days,
+            'left_hours': left_hours,
             'unlimited_time': not card['expires_at'],
+            'expired': expired or card['status'] == 'expired',
             'quota': quota,
             'quota_used': used,
             'unlimited_quota': quota == 0,

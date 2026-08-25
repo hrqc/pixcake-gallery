@@ -190,23 +190,31 @@ async function boot() {
   await loadOrders();
 }
 
+function timeLeft(card) {
+  if (!card.expires_at) return '0天';
+  const mins = Math.max(0, Math.ceil((card.expires_at * 1000 - Date.now()) / 60000));
+  if (mins < 60) return mins + '分钟';
+  if (mins < 1440) return Math.ceil(mins / 60) + '小时';
+  return (card.left_days ?? 0) + '天';
+}
 function renderCard(card) {
   const chip = $('cardChip');
   if (!card) { chip.textContent = '无生效卡密'; chip.className = 'chip warn'; return; }
-  const d = card.left_days;
+  const expired = card.expired === true || card.status === 'expired' || (card.expires_at && card.expires_at*1000 <= Date.now());
   const quota = card.unlimited_quota ? '不限' : (card.remaining + '/' + card.quota);
   let txt = card.plan_name + ' · 剩余';
-  if (!card.unlimited_time) txt += (d + '天');
+  if (!card.unlimited_time) txt += (expired ? '已过期' : timeLeft(card));
   if (!card.unlimited_quota) txt += ' · ' + quota + '张';
   chip.textContent = txt;
-  chip.className = 'chip ' + ((d !== null && d <= 3) || (!card.unlimited_quota && card.remaining <= 0) ? 'warn' : 'ok');
+  chip.className = 'chip ' + ((expired || (!card.unlimited_quota && card.remaining <= 0)) ? 'warn' : 'ok');
 }
 
 function renderAlerts(card) {
   const box = $('alerts');
   if (!card) { box.innerHTML = '<div class="warnbar">暂无生效卡密，请先在客户端软件激活，或联系管理员购买。</div>'; return; }
   let html = '';
-  const needBuy = (card.unlimited_time ? false : card.left_days <= 0) ||
+  const expired = card.expired === true || card.status === 'expired' || (card.expires_at && card.expires_at*1000 <= Date.now());
+  const needBuy = (card.unlimited_time ? false : expired) ||
                   (!card.unlimited_quota && card.remaining <= 0);
   if (needBuy && ME.tenant.admin_contact) {
     html += '<div class="warnbar">⚠ 卡密到期/张数已用完，请联系管理员购买新卡密：<b>' + ME.tenant.admin_contact + '</b></div>';

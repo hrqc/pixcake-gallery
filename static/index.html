@@ -823,7 +823,9 @@ async function phoRefresh(){
     document.getElementById('phoTbody').innerHTML = rows.map(p => {
       const c = p.card || {};
       const cardTxt = c.plan_name
-        ? (c.plan_name+' · '+(c.unlimited_time?'永久':((c.left_days??0)+'天'))+
+        ? (c.plan_name+' · '+(c.unlimited_time?'永久'
+           : (function(){ const m=Math.max(0,Math.ceil(((c.expires_at||0)*1000-Date.now())/60000));
+              if(m<60) return m+'分钟'; if(m<1440) return Math.ceil(m/60)+'小时'; return (c.left_days??0)+'天'; })())+
            (c.unlimited_quota?'':' · '+(c.remaining??0)+'/'+(c.quota||0)+'张'))
         : '无生效卡';
       const site = location.origin + '/g/' + p.id + '/';
