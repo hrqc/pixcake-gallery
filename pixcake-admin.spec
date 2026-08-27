@@ -36,6 +36,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    icon='app.ico',
     console=True,          # 控制台窗口 = 关闭窗口即退出客户端
     disable_windowed_traceback=False,
     argv_emulation=False,

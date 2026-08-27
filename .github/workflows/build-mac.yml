@@ -36,7 +36,7 @@ jobs:
       - name: Build .app
         run: |
           pyinstaller -y --noconfirm --windowed --name pixcake-admin \
-            --add-data static:static --add-data watermark_assets:watermark_assets \
+            --icon app.icns --add-data static:static --add-data watermark_assets:watermark_assets \
             --hidden-import openpyxl launch_admin.py
       - name: Create dmg
         run: |
